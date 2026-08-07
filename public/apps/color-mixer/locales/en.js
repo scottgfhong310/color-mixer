@@ -46,7 +46,7 @@ I18n.register('en', {
   'near.useCalib': 'Compare using calibrated values (where a real-application record exists)',
   'near.empty': 'No brands selected — pick at least one.',
   'near.calibrated': 'calibrated',
-  'band.very': 'very close',
+  'band.very': 'excellent match',
   'band.close': 'close',
   'band.noticeable': 'noticeable',
   'band.far': 'far',

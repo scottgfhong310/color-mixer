@@ -46,10 +46,10 @@ I18n.register('ja', {
   'near.useCalib': '校正値で比較する（記録のある色は実際の塗色値を使用）',
   'near.empty': 'ブランドが選ばれていません——少なくとも 1 つ選んでください。',
   'near.calibrated': '校正',
-  'band.very': '極めて近い',
+  'band.very': 'ごく近い',
   'band.close': '近い',
-  'band.noticeable': '識別可能な差',
-  'band.far': '差が大きい',
+  'band.noticeable': '差が分かる',
+  'band.far': '遠い',
 
   /* ---- 各ブランドの比較範囲（既定は「全部」ではない） ---- */
   'pool.faber-castell-color': 'Faber-Castell は Art & Graphic のみ、Black Edition（別製品ライン）は含みません',
