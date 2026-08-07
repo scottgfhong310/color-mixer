@@ -330,6 +330,9 @@
         || String(c.hex || '').toLowerCase().indexOf(q) >= 0;
     });
     $('#pick-empty').toggle(list.length === 0);
+    // 表頭脈絡：現在在看哪個品牌、篩出幾色（同 chat-archive 的 #prompt-path）。
+    // 印**篩選後**的數字而不是品牌總色數——使用者數得出來，對不上就是騙人。
+    $('#pick-path').text(b.label + ' · ' + list.length + (q ? ' / ' + b.colors().length : ''));
     // 上限只為了不讓 800+ 色片一次進 DOM；有搜尋框可以縮小範圍。
     $('#pick-grid').html(list.slice(0, 400).map(function (c) {
       var fg = Lib.pickTextColor({ r: c.r, g: c.g, b: c.b });
@@ -338,10 +341,14 @@
         + '<span>' + esc(c.code) + '</span></div>';
     }).join(''));
   }
-  function openPick() {
+  function pickNav() { return window.M.Sidenav.getInstance(document.getElementById('pick-nav')); }
+
+  /** 側鍵與「加一層」都走這裡：已開就收起（同 chat-archive 的 #setting-prompts）。 */
+  function togglePick() {
     renderPickBrands();
     renderPickGrid();
-    window.M.Modal.getInstance(document.getElementById('pick-modal')).open();
+    var inst = pickNav();
+    if (inst) { inst.isOpen ? inst.close() : inst.open(); }
   }
 
   function findColor(brandId, code) {
@@ -538,7 +545,7 @@
     });
 
     // 顏料層
-    $('#add-layer, #setting-add').on('click', openPick);
+    $('#add-layer, #setting-add').on('click', togglePick);
     $('#layers')
       .on('input', 'input[type=range]', function () {
         var i = +$(this).data('i');
@@ -572,8 +579,9 @@
     });
     $('#pick-search').on('input', renderPickGrid);
     $('#pick-grid').on('click', '.pick-sw', function () {
+      // ⚠️ **刻意不關面板**：這正是它從 Modal 改成側欄的理由——挑一支、看畫布怎麼變、
+      //    再挑下一支是一個連續動作。關掉面板等於把「回去再挑」變回一個需要存在的動作。
       addLayer(state.pickBrand, $(this).data('code'));
-      window.M.Modal.getInstance(document.getElementById('pick-modal')).close();
     });
 
     // 最接近色 → 明細
@@ -647,6 +655,13 @@
 
   function init() {
     window.M.Modal.init(document.querySelectorAll('.modal'), { preventScrolling: false });
+    // 挑色面板走右側滑出 sidenav（形制同 chat-archive 的 Prompt 清單）。
+    // onOpenStart/onCloseEnd 掛 body.sidenav-open —— 共用 side-tool.css 靠它把整排側鍵淡出。
+    window.M.Sidenav.init(document.getElementById('pick-nav'), {
+      edge: 'right',
+      onOpenStart: function () { document.body.classList.add('sidenav-open'); },
+      onCloseEnd: function () { document.body.classList.remove('sidenav-open'); }
+    });
 
     applyTheme(localStorage.getItem(LS_THEME) || 'dark');
 

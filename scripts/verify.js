@@ -397,6 +397,30 @@ check('F6', '畫布＝基材、圓內＝結果（兩個不同的顏色，不准�
   return { ok: true, detail: '#canvas ← state.stack.base ／ #mix-disc ← r.hex' };
 });
 
+check('F7', '挑色走右側 sidenav，且挑完不關面板', () => {
+  const html = read('index.html');
+  const js = read('color-mixer.js')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // ① 形制：是 sidenav 不是 modal（形制照抄 chat-archive 的 Prompt 清單）
+  if (!/<ul id="pick-nav"[^>]*class="sidenav pick-panel"/.test(html))
+    throw new Error('#pick-nav 不是 .sidenav.pick-panel');
+  if (/id="pick-modal"/.test(html)) throw new Error('舊的挑色 Modal 還在');
+  if (!/M\.Sidenav\.init\(document\.getElementById\('pick-nav'\)/.test(js))
+    throw new Error('#pick-nav 沒有 M.Sidenav.init');
+  if (!/edge:\s*'right'/.test(js)) throw new Error('sidenav 沒有指定 edge:right');
+  // 共用 side-tool.css 靠 body.sidenav-open 把側鍵淡出——沒掛的話開面板時側鍵會壓在上面
+  if (!/sidenav-open/.test(js)) throw new Error('沒有掛 body.sidenav-open');
+
+  // ② **這條才是這次改動的重點**：點色片後不可以關面板。
+  //    關掉就等於把「回去再挑」變回一個需要存在的動作，那正是改成側欄要消滅的東西。
+  const h = js.slice(js.indexOf("$('#pick-grid').on('click'"));
+  const body = h.slice(0, h.indexOf('});'));
+  if (!/addLayer\(/.test(body)) throw new Error('pick-grid handler 沒有 addLayer');
+  if (/\.close\(\)/.test(body)) throw new Error('點色片後把面板關掉了——側欄的意義就沒了');
+  return { ok: true, detail: 'sidenav(right) ＋ 挑完保持開啟' };
+});
+
 check('F4', 'i18n：模型有幾個，三語就要有幾組文案', () => {
   const langs = ['zh-Hant', 'en', 'ja'];
   const missing = [];

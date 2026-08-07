@@ -160,25 +160,34 @@
     </div>
   </div>
 
-  <!-- ===== 挑色 Modal ===== -->
-  <div id="pick-modal" class="modal pick-modal">
-    <div class="modal-content">
-      <div class="pick-head">
-        <h5 data-i18n="pick.title">挑一支筆</h5>
-        <div class="pick-search">
-          <i class="material-icons">search</i>
-          <input id="pick-search" type="text" autocomplete="off" spellcheck="false"
-                 data-i18n-placeholder="pick.placeholder" placeholder="色號或色名…" data-filter-clear />
-        </div>
+  <!-- ===== 右側滑出：挑一支筆（形制照抄 chat-archive 的 Prompt 清單 ／
+                    faber-castell-color 的 nearest-panel——同一套 Materialize sidenav） =====
+
+       **為什麼是側欄不是 Modal**：加顏料層是「挑一支 → 看畫布怎麼變 → 再挑下一支」的
+       連續動作。Modal 一次只能站一個，挑完必須關掉才看得到結果，於是「回去再挑」變成
+       一個需要存在的動作。側欄與畫布並存，那個動作就消失了——同 v1.21 在 chat-archive
+       上的收斂：**正解是讓那個問題消失，不是加一顆返回鍵。**
+       連帶：點色片後**刻意不關面板**（見 color-mixer.js 的 pick-grid handler）。 -->
+  <ul id="pick-nav" class="sidenav pick-panel" style="width: 380px;">
+    <li>
+      <a class="subheader">
+        <i class="material-icons">palette</i>
+        <span><span data-i18n="pick.title">挑一支筆</span><span class="path" id="pick-path"></span></span>
+      </a>
+    </li>
+    <li><div class="divider"></div></li>
+    <li>
+      <div class="pick-search">
+        <i class="material-icons">search</i>
+        <input id="pick-search" type="text" autocomplete="off" spellcheck="false"
+               data-i18n-placeholder="pick.placeholder" placeholder="色號或色名…" data-filter-clear />
       </div>
       <div id="pick-brands" class="group-chips" role="radiogroup"></div>
-      <div id="pick-grid" class="pick-grid"></div>
-      <div id="pick-empty" class="empty-hint" style="display:none" data-i18n="pick.empty">找不到符合的顏色</div>
-    </div>
-    <div class="modal-footer">
-      <a href="#!" class="modal-close btn-flat" data-i18n="btn.close">關閉</a>
-    </div>
-  </div>
+    </li>
+    <li><div class="divider"></div></li>
+    <div id="pick-grid" class="pick-grid"></div>
+    <div id="pick-empty" class="empty-hint" style="display:none" data-i18n="pick.empty">找不到符合的顏色</div>
+  </ul>
 
   <!-- ===== 色票明細 Modal（§11.1 骨架） ===== -->
   <div id="detail-modal" class="modal detail-modal">
