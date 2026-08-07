@@ -1,0 +1,256 @@
+/* color-mixer — 主題 token ＋ 本頁樣式
+ *
+ * Materialize 元件的深色交給共用 materialize-dark.css（§5.1），這裡只管
+ * 非 Materialize 的自訂元素。token 逐條照家族標準（§5.1）。
+ */
+
+:root, [data-theme="dark"] {
+  --bg:#0f1115; --surface:#161a22; --surface-2:#1b2030;
+  --text:#e8eaf0; --muted:#a8b0c0; --border:rgba(255,255,255,.12);
+  --accent:#90caf9; --card-bg:#0f1115;
+  --tool-bg:#1b2030; --tool-fg:#e8eaf0;
+  --overlay:rgba(10,14,22,.84); --drop-border:#3a4252;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --bg:#f6f8fa; --surface:#fff; --surface-2:#eef1f5;
+  --text:#1f2328; --muted:#57606a; --border:rgba(0,0,0,.12);
+  --accent:#0969da; --card-bg:#fff;
+  --tool-bg:#fff; --tool-fg:#1f2328;
+  --overlay:rgba(240,243,247,.86); --drop-border:#c4ccd6;
+  color-scheme: light;
+}
+
+html, body { background: var(--bg); color: var(--text); }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  transition: background .2s;
+}
+:lang(ja) body { font-family: "Noto Sans JP", system-ui, sans-serif; }
+
+.app-container { width: 93%; max-width: 1280px; margin: 0 auto; padding: 22px 0 64px; }
+
+.topbar h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 4px; }
+.topbar .sub { font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+
+/* ---- 佔位資料告示：要看得見，但不要蓋掉內容 ---- */
+.stub-banner {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,167,38,.13); border: 1px solid rgba(255,167,38,.45);
+  border-radius: 10px; padding: 9px 14px; margin-bottom: 16px;
+  font-size: .85rem; color: var(--text);
+}
+.stub-banner i { font-size: 19px; color: #ffa726; }
+
+/* ---- 卡片 ---- */
+.panel {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 22px; margin-bottom: 16px;
+}
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.panel-head h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+.panel-head .btn-flat,
+.panel-head > span:last-child { margin-left: auto; }   /* §5.3：塞不下時動作群落第二列右對齊 */
+.pool-note, .model-group-label { font-size: .78rem; color: var(--muted); }
+
+.work { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .work { grid-template-columns: 1fr; } }
+
+/* ---- 畫布（＝基材）與中央的疊加區（＝顏料） ----
+ *
+ * 畫布用 `aspect-ratio: 4/3` 而不是固定高度：4:3 是紙張的常見比例，
+ * 而且高度跟著欄寬走，窄視窗自動變小、不必另設斷點。
+ * ⚠️ 另加 `max-width`——沒有它的話，寬欄位下 4:3 會讓畫布長到幾百 px 高，
+ *    把下面的顏料層擠出視窗外。上限到了就置中，比例不變。
+ */
+.canvas {
+  width: 100%; max-width: 560px; margin-inline: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .18s;
+}
+
+/* 疊加區：邊長取畫布**高度**的 62% ＋ `aspect-ratio:1`，所以無論畫布多寬都是正圓
+ * （用 % 寬度會隨欄寬變成橢圓）。 */
+.mix-disc {
+  height: 62%; aspect-ratio: 1; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: background .18s, box-shadow .18s;
+}
+.canvas-readout { font-variant-numeric: tabular-nums; text-align: center; }
+/* ⚠️ 字色由 pickTextColor 算出、寫在 .mix-disc 的 inline style 上，但文字包在子元素裡，
+   而 materialize-dark.css 有一條 `body,p,span,li,…{color:var(--mz-text)}` 會蓋掉它
+   ——淺色結果於是變成白字白底。§11.1 明文記載的坑，三支色彩 app 都用同一道解法。 */
+.mix-disc * { color: inherit; }
+.result-hex { font-size: 1.5rem; font-weight: 600; letter-spacing: .01em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.result-rgb { font-size: .78rem; opacity: .82;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.canvas-foot { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.canvas-foot .field { flex: 1 1 180px; }
+.field-label { display: block; font-size: .74rem; color: var(--muted); margin-bottom: 2px; }
+.field-hex input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ---- 複製鈕列（§11.1：var → hex → rgb → class） ---- */
+.copy-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.copy-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 10px; font-size: .78rem; cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  transition: background .15s, border-color .15s;
+}
+/* Materialize 對裸 <button> 的 :hover/:active 會套 teal 互動底（§5.1 gotcha）——覆寫掉 */
+.copy-btn:hover, .copy-btn:focus, .copy-btn:active { background: var(--surface); border-color: var(--accent); }
+.copy-btn i { font-size: 15px; }
+.copy-btn.copied { border-color: #43a047; color: #66bb6a; }
+
+/* ---- 顏料層 ---- */
+.layers { display: flex; flex-direction: column-reverse; gap: 10px; }
+/* column-reverse：陣列第 0 層是最先塗的（最下面），畫面上就該在最下面。
+   讓資料順序與視覺順序一致，免得呼叫端要記得倒過來讀。 */
+.layer {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 10px;
+  align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 11px;
+}
+.layer-chip { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border); }
+.layer-main { min-width: 0; }
+.layer-title { font-size: .84rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.layer-sub { font-size: .72rem; color: var(--muted); }
+.layer-alpha { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.layer-alpha input[type=range] { flex: 1; accent-color: var(--accent); }
+.layer-alpha .pct { font-size: .74rem; color: var(--muted); min-width: 34px; text-align: right;
+  font-variant-numeric: tabular-nums; }
+/* §5.9：Materialize AutoInit 會在 range 後注入一顆 .thumb 數值氣泡，沒有
+   position 祖先時會飄到版面左上角變成一個「倒三角」。自繪 range 一律藏掉它。 */
+.layer-alpha .thumb { display: none !important; }
+.layer-act { display: flex; gap: 2px; }
+.layer-act button {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 3px; border-radius: 6px; line-height: 1;
+}
+.layer-act button:hover, .layer-act button:focus, .layer-act button:active {
+  background: var(--surface-2); color: var(--text);
+}
+.layer-act .del:hover { color: #ff6e6e; }
+.layer-act i { font-size: 18px; }
+
+.empty-hint { font-size: .82rem; color: var(--muted); padding: 10px 2px; }
+
+/* ---- 分組 chips（單選互斥、恆有一個 active、**無勾號** §5.13） ---- */
+.group-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.group-chip {
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); border-radius: 999px; padding: 4px 12px;
+  font-size: .78rem; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.group-chip:hover, .group-chip:focus { border-color: var(--accent); background: var(--surface); }
+.group-chip.active { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 600; }
+.group-chip.active:hover { background: var(--accent); }
+.chip-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 5px; }
+
+/* ---- 篩選 chips（多選、**有勾號**、可全部取消 §5.13） ---- */
+.filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.type-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.type-chip {
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); border-radius: 999px; padding: 4px 12px;
+  font-size: .78rem; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.type-chip:hover, .type-chip:focus { border-color: var(--accent); background: var(--surface); }
+.type-chip.active { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 600; padding-left: 7px; }
+.type-chip.active:hover { background: var(--accent); }
+.type-chip.active::before {
+  content: 'check'; font-family: 'Material Icons';
+  font-size: 13px; line-height: 1; margin-right: 3px;
+  font-weight: normal; letter-spacing: normal;   /* 不繼承 chip 的粗體/字距 */
+  vertical-align: -2px;
+}
+.btn-flat.tiny { padding: 0 6px; height: 28px; line-height: 28px; }
+.btn-flat.tiny i { font-size: 17px; }
+
+.model-note { font-size: .78rem; color: var(--muted); margin: 10px 0 0; line-height: 1.55; }
+.alpha-note { margin-top: 4px; }
+.model-note .warn { color: #ffa726; }
+
+.calib-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem;
+  color: var(--muted); margin-bottom: 12px; cursor: pointer; }
+.calib-toggle input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+/* ---- 最接近色 ---- */
+.near-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px; }
+.near-card {
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--surface); cursor: pointer; transition: border-color .15s, transform .1s;
+}
+.near-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.near-sw { height: 62px; display: flex; align-items: flex-end; justify-content: space-between; padding: 5px 8px; }
+.near-sw * { color: inherit; }          /* 同 .canvas：擋 materialize-dark 的裸 span 規則 */
+.near-sw .code { font-size: .78rem; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.near-sw .cal { font-size: .62rem; opacity: .85; border: 1px solid currentColor;
+  border-radius: 4px; padding: 0 3px; }
+.near-meta { padding: 6px 8px 8px; }
+.near-brand { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.near-name { font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.near-de { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.near-de .band-very { color: #66bb6a; }
+.near-de .band-close { color: #9ccc65; }
+.near-de .band-noticeable { color: #ffa726; }
+.near-de .band-far { color: #ef5350; }
+
+/* ---- 挑色 Modal ---- */
+.pick-modal { max-width: 760px; width: 92%; }
+.pick-modal .modal-content { padding: 18px 22px 6px; }
+.pick-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.pick-head h5 { font-size: 1.05rem; margin: 0; }
+.pick-search { display: flex; align-items: center; gap: 6px; margin-left: auto;
+  border-bottom: 1px solid var(--border); }
+.pick-search i { font-size: 19px; color: var(--muted); }
+.pick-search input { border: none !important; box-shadow: none !important; height: 30px !important;
+  margin: 0 !important; width: 220px; color: var(--text); }
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 6px; max-height: 46vh; overflow-y: auto; margin-top: 12px; }
+.pick-sw { height: 52px; border-radius: 7px; border: 1px solid var(--border); cursor: pointer;
+  display: flex; align-items: flex-end; padding: 3px 5px; font-size: .68rem; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pick-sw * { color: inherit; }
+.pick-sw:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---- 明細 Modal（§11.1 骨架，class 名與數值照抄） ---- */
+.detail-modal { max-width: 560px; border-radius: 14px; }
+.detail-modal .modal-content { padding: 0; }
+.detail-head { height: 120px; display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 12px 20px; }
+.detail-head span { color: inherit; }   /* §11.1 明文的那道解法 */
+.d-code { font-size: 1.3rem; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.d-tag { font-size: .78rem; opacity: .9; }
+.detail-body { padding: 16px 20px 6px; }
+.d-name { font-size: 1rem; font-weight: 600; }
+.d-note { font-size: .74rem; color: var(--muted); margin-top: 4px; line-height: 1.55; }
+.d-section { margin-top: 16px; }
+.d-section h6 { font-size: .82rem; font-weight: 600; margin: 0 0 6px; color: var(--muted); }
+.d-empty { font-size: .78rem; color: var(--muted); font-style: italic; }
+.facts-table { width: 100%; font-size: .8rem; }
+.facts-table td { padding: 3px 0; border: none; }
+.facts-table td.fk { color: var(--muted); width: 42%; }
+.facts-table td.fv { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.css-modal { max-width: 700px; }
+.css-out {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; font-size: .76rem; line-height: 1.6; max-height: 48vh; overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre; color: var(--text);
+}
+.calib-modal { max-width: 640px; }
+
+@media print { .side-tools { display: none !important; } }

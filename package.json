@@ -1,0 +1,16 @@
+{
+  "name": "color-mixer",
+  "version": "0.1.0",
+  "description": "調色盤：在基材底色上疊半透明顏料，以四種混色模型算出結果色，並在 Art Color 家族的五個品牌 2,157 支筆裡找最接近的色。零後端、參數全寫在網址列，支援 light/dark 與三語。",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "verify": "node scripts/verify.js"
+  },
+  "keywords": ["color", "colour", "mixer", "palette", "kubelka-munk", "oklab", "copic", "faber-castell", "express"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "morgan": "^1.10.0"
+  }
+}

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>color-mixer — 調色盤</title>
+  <meta name="theme-color" content="#0f1115" />
+
+  <!-- 防主題閃爍：render 前先讀 localStorage 設好 data-theme 與 dark-mode/light-mode class（§5.1 坑） -->
+  <script>
+    try {
+      var t = localStorage.getItem('color-mixer-theme') || 'dark';
+      var r = document.documentElement;
+      r.dataset.theme = t;
+      r.classList.toggle('dark-mode', t === 'dark');
+      r.classList.toggle('light-mode', t === 'light');
+    } catch (e) { }
+  </script>
+
+  <!-- Materialize 1.0.0 + Material Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <!-- Materialize 元件深色（家族共用；在 materialize.css 之後、本頁樣式之前） -->
+  <link rel="stylesheet" href="./materialize-dark.css" />
+
+  <link rel="stylesheet" href="./color-mixer.css" />
+  <link rel="stylesheet" href="./side-tool.css" />
+  <link rel="stylesheet" href="./filter-clear.css" />
+</head>
+
+<body data-i18n-doctitle="title.page">
+
+  <main>
+    <div class="app-container">
+
+      <div class="topbar">
+        <h1 data-i18n="app.title">調色盤</h1>
+        <div class="sub" data-i18n="app.sub">在基材底色上疊顏料，算出結果色，並在 Art Color 家族裡找最接近的筆</div>
+      </div>
+
+      <!-- 佔位校準資料的告示。CM_CALIBRATION_META.stub 為 true 時才顯示（verify F3 擋著）。 -->
+      <div id="calib-stub" class="stub-banner" style="display:none">
+        <i class="material-icons">science</i>
+        <span data-i18n="calib.stubWarn">目前載入的校準資料是佔位值，不是實測——請勿據以決定用色。</span>
+      </div>
+
+      <div class="work">
+
+        <!-- ===== 左：畫布 ===== -->
+        <section class="panel canvas-panel">
+          <!--
+            畫布＝**基材本身**（底色就是紙色）；中央的圓＝**顏料疊加區**（結果色）。
+            兩者分開才看得見「紙」與「紙上那一塊顏料」的差別——換一張紙，
+            外圈與圓內會一起變，而 `罩染` 與 `調色盤混合` 對紙色的反應不同
+            （見 color-mixer-lib.js 檔頭那張實測表），這個版面把它直接畫出來。
+          -->
+          <div id="canvas" class="canvas" role="img" data-i18n-title="canvas.aria" title="基材與疊加區">
+            <div id="mix-disc" class="mix-disc">
+              <div class="canvas-readout">
+                <div id="result-hex" class="result-hex">#ffffff</div>
+                <div id="result-rgb" class="result-rgb">rgb(255, 255, 255)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-foot">
+            <div class="field">
+              <label class="field-label" for="substrate" data-i18n="canvas.substrate">基材（畫布底色）</label>
+              <select id="substrate"></select>
+            </div>
+            <div class="field field-hex">
+              <label class="field-label" for="base-hex" data-i18n="canvas.baseHex">自訂底色</label>
+              <input id="base-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#ffffff" />
+            </div>
+          </div>
+
+          <div class="copy-row" id="copy-row"></div>
+        </section>
+
+        <!-- ===== 右：顏料層 ===== -->
+        <section class="panel layers-panel">
+          <div class="panel-head">
+            <h2 data-i18n="layers.title">顏料層</h2>
+            <button id="add-layer" class="btn-flat" type="button">
+              <i class="material-icons left">add</i><span data-i18n="layers.add">加一層</span>
+            </button>
+          </div>
+          <div id="layers" class="layers"></div>
+          <div id="layers-empty" class="empty-hint" data-i18n="layers.empty">
+            還沒有顏料層——按「加一層」從家族的五個品牌挑一支筆，或直接填一個 hex。
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== 混色模型（分組 chips：單選互斥、恆有一個 active、無勾號 §5.13） ===== -->
+      <section class="panel model-panel">
+        <div class="panel-head">
+          <h2 data-i18n="model.title">混色模型</h2>
+          <span class="model-group-label" data-i18n="model.groups">左：光的疊加　右：減色（近似）</span>
+        </div>
+        <div id="model-chips" class="group-chips" role="radiogroup"></div>
+        <p id="model-note" class="model-note"></p>
+        <p id="alpha-note" class="model-note alpha-note"></p>
+      </section>
+
+      <!-- ===== 家族最接近色 ===== -->
+      <section class="panel near-panel">
+        <div class="panel-head">
+          <h2 data-i18n="near.title">Art Color 家族最接近的色</h2>
+          <span id="near-pool" class="pool-note"></span>
+        </div>
+
+        <!-- 篩選 chips：多選、有勾號、可全部取消（§5.13） -->
+        <div class="filter-row">
+          <div id="brand-chips" class="type-chips"></div>
+          <button id="brand-clear" class="btn-flat tiny" type="button"
+                  data-i18n-title="tool.clearFilter" title="清除">
+            <i class="material-icons">clear</i>
+          </button>
+        </div>
+
+        <label class="calib-toggle">
+          <input type="checkbox" id="use-calib" />
+          <span data-i18n="near.useCalib">以校準值比對（有紀錄的色改用實際上色值）</span>
+        </label>
+
+        <div id="near-list" class="near-list" aria-live="polite"></div>
+        <div id="near-empty" class="empty-hint" style="display:none" data-i18n="near.empty">
+          沒有符合的品牌——至少要選一個。
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ===== 右側工具列（§5.5：入口 → app 工具 → mode → lang） ===== -->
+  <div class="side-tools">
+    <div id="setting-add" class="side-tool" data-i18n-title="tool.add" title="加一層顏料">
+      <i class="material-icons">palette</i>
+    </div>
+    <div id="setting-calib" class="side-tool" data-i18n-title="tool.calib" title="校準紀錄">
+      <i class="material-icons">science</i>
+    </div>
+    <div id="setting-css" class="side-tool" data-i18n-title="tool.css" title="檢視 / 複製 CSS">
+      <i class="material-icons">code</i>
+    </div>
+    <div id="setting-share" class="side-tool" data-i18n-title="tool.share" title="複製分享連結">
+      <i class="material-icons">link</i>
+    </div>
+    <div id="setting-reset" class="side-tool" data-i18n-title="tool.reset" title="清除這次調色">
+      <i class="material-icons">clear</i>
+    </div>
+    <div id="setting-mode" class="side-tool" data-i18n-title="tool.mode" title="切換 light / dark">
+      <i class="material-icons">dark_mode</i>
+    </div>
+    <div id="setting-lang" class="side-tool" data-i18n-title="tool.lang" title="語言">
+      <i class="material-icons">translate</i>
+    </div>
+  </div>
+
+  <!-- ===== 挑色 Modal ===== -->
+  <div id="pick-modal" class="modal pick-modal">
+    <div class="modal-content">
+      <div class="pick-head">
+        <h5 data-i18n="pick.title">挑一支筆</h5>
+        <div class="pick-search">
+          <i class="material-icons">search</i>
+          <input id="pick-search" type="text" autocomplete="off" spellcheck="false"
+                 data-i18n-placeholder="pick.placeholder" placeholder="色號或色名…" data-filter-clear />
+        </div>
+      </div>
+      <div id="pick-brands" class="group-chips" role="radiogroup"></div>
+      <div id="pick-grid" class="pick-grid"></div>
+      <div id="pick-empty" class="empty-hint" style="display:none" data-i18n="pick.empty">找不到符合的顏色</div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <!-- ===== 色票明細 Modal（§11.1 骨架） ===== -->
+  <div id="detail-modal" class="modal detail-modal">
+    <div class="modal-content">
+      <div id="d-head" class="detail-head">
+        <span id="d-code" class="d-code"></span>
+        <span id="d-tag" class="d-tag"></span>
+      </div>
+      <div class="detail-body">
+        <div id="d-name" class="d-name"></div>
+        <div id="d-note" class="d-note"></div>
+        <div id="d-copy" class="copy-row"></div>
+        <div id="d-sections"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" id="d-use" class="btn-flat" data-i18n="detail.use">加進顏料層</a>
+      <a href="#!" class="modal-close btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <!-- ===== CSS Modal ===== -->
+  <div id="css-modal" class="modal css-modal">
+    <div class="modal-content">
+      <h5 data-i18n="css.title">這次調色的 CSS</h5>
+      <p class="d-note" data-i18n="css.note">配方寫在註解裡——只給一個 hex，日後沒有人知道它是怎麼來的。</p>
+      <pre id="css-out" class="css-out"></pre>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" id="css-copy" class="btn-flat" data-i18n="css.copy">複製</a>
+      <a href="#!" class="modal-close btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <!-- ===== 校準 Modal ===== -->
+  <div id="calib-modal" class="modal calib-modal">
+    <div class="modal-content">
+      <h5 data-i18n="calib.title">校準紀錄</h5>
+      <p class="d-note" data-i18n="calib.note">
+        校準紀錄由 db_artcolor 匯出，本 app 唯讀。三個 hex 各自回答不同的問題：型錄值 → 認可值＝螢幕與實際上色的差距；錨點 → 認可值＝目視偏差。
+      </p>
+      <div id="calib-body"></div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat" data-i18n="btn.close">關閉</a>
+    </div>
+  </div>
+
+  <!-- ===== 依賴（CDN） ===== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+  <!-- i18n 引擎 + 字典 -->
+  <script src="./i18n.js"></script>
+  <script src="./locales/zh-Hant.js"></script>
+  <script src="./locales/en.js"></script>
+  <script src="./locales/ja.js"></script>
+
+  <!--
+    ⚠️ color-family.js 必須排在 faber-castell-color-lib.js 與 finecolour-color-lib.js
+    **之前**——那兩支在模組載入時就讀 window.ColorFamily，排錯整支 app 當場掛掉
+    （家族 CLAUDE.md v1.18）。scripts/verify.js 的 E2 條擋著這件事。
+  -->
+  <script src="./color-family.js"></script>
+
+  <!-- 五個品牌的資料（家族色彩 registry 的複製件，由各上游 repo 的 sync-copies.sh 同步） -->
+  <script src="./data/fc-colors.js"></script>
+  <script src="./data/cda-colors.js"></script>
+  <script src="./data/copic-colors.js"></script>
+  <script src="./data/finecolour-colors.js"></script>
+  <script src="./data/enmy-colors.js"></script>
+
+  <!-- 五個品牌的比對器（各自的規矩住在這裡，本 app 不重寫） -->
+  <script src="./faber-castell-color-lib.js"></script>
+  <script src="./caran-dache-color-lib.js"></script>
+  <script src="./copic-color-lib.js"></script>
+  <script src="./finecolour-color-lib.js"></script>
+  <script src="./enmy-color-lib.js"></script>
+
+  <!-- 校準資料（目前是佔位；正式版由 a3-export.js 匯出） -->
+  <script src="./data/calibration.js"></script>
+
+  <!-- 本 app 的純核心 -->
+  <script src="./color-mixer-lib.js"></script>
+
+  <!-- 共用 utility -->
+  <script src="./filter-clear.js"></script>
+  <script src="./side-tool.js"></script>
+
+  <!-- 控制器最後載入（DOM 與所有依賴皆就緒） -->
+  <script src="./color-mixer.js"></script>
+</body>
+
+</html>
