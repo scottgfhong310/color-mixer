@@ -124,9 +124,27 @@ body {
    ⚠️ 基材要 `min-width: 0` 才收得住——flex item 的預設 min-width 是 auto，
       Materialize 的 select 是靠 <input readonly> 呈現的，內容撐得比 flex-basis 寬時
       **會溢出而不是被壓縮**，於是「（紙色未量測）」的尾巴被切掉。 */
+/* ⚠️ **flex-basis 的總和必須裝得進這一列的可用寬**，否則會換行——而換行只在
+   夠寬的視窗下才看得出是「浪費」，窄視窗下反而是對的，所以肉眼很難發現訂錯了。
+   實算（1512px 視窗，`.app-container` 已被 `max-width: 1280` 卡住 ⇒ **570 就是
+   這一列永遠的上限**，再寬也不會更多）：
+     可用 570 ＝ 面板 676 − 面板左右內距 44 − 本列讓給側欄的 60 − …
+     基準值 260 + 140 + 140 ＝ 540，加兩個 14px 間距 ＝ 568 ≤ 570 ✔
+   （舊值 300 + 160 + 160 + 28 ＝ 648，超出 78，所以第三欄被擠到第二列。）
+   基材的最長選項「白色 A4 影印紙　（紙色未量測）」實測文字寬 229，
+   加上下拉箭頭與內距仍在 260 之內；hex 欄最少只要 102（68 文字 ＋ 30 按鍵 ＋ 4 間距）。 */
 .canvas-foot .field { min-width: 0; }
-.canvas-foot .field:first-child { flex: 3 1 300px; }
-.canvas-foot .field-hex { flex: 1 1 160px; }
+/* ⚠️ 基材選項塞不下時要出省略號，不能硬切。實測三語最長選項的文字寬差很多：
+     zh-Hant 203 ／ ja 225 ／ **en 298**（縮短標記後；未縮短前 en 是 393）
+   ——**沒有任何一個欄寬塞得下英文**，所以「把欄位調到剛好」是行不通的方向，
+   只能讓它優雅地截斷（完整文字仍在展開的下拉清單裡）。
+   Materialize 的 select 是 `<input readonly>`，input 預設是硬切、不吃 text-overflow
+   除非同時有 overflow 與 white-space。 */
+.canvas-foot .select-wrapper input.select-dropdown {
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.canvas-foot .field:first-child { flex: 3 1 260px; }
+.canvas-foot .field-hex { flex: 1 1 140px; }
 
 /* hex 欄位 ＋ 套用鍵。⚠️ 套用鍵**不是** change 的替代品，是它的可見版本
    （change 只在 Enter／失焦時發生，那件事畫面上看不出來）。 */

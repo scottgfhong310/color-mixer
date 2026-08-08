@@ -96,7 +96,7 @@ I18n.register('zh-Hant', {
   /* ---- 校準 ---- */
   'calib.title': '校準紀錄',
   'calib.note': '校準紀錄由 db_artcolor 匯出，本 app 唯讀。三個 hex 各自回答不同的問題：型錄值 → 認可值＝螢幕與實際上色的差距；錨點 → 認可值＝目視偏差。',
-  'canvas.noBaseShort': '（紙色未量測）',
+  'canvas.noBaseShort': '（未量測）',
   'calib.noBase': '「{s}」的紙色還沒量過，畫布暫以白紙渲染——罩染模型下紙色會透出來，所以算出來的顏色目前是白紙的答案。',
   'calib.stubWarn': '目前載入的校準資料是佔位值，不是實測——請勿據以決定用色。',
   'calib.empty': '目前沒有任何校準紀錄。',
