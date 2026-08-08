@@ -47,6 +47,11 @@ I18n.register('en', {
   /* ---- nearest ---- */
   'near.title': 'Closest colours in the Art Color family',
   'near.pool': 'Comparing against {n} pens ({brands} brands)',
+  'near.gap': 'Rank 1 and rank 2 differ by ΔE00 {gap}.',
+  'near.gapWide': 'Wide gap: this answer is immune to small errors, but once your visual error exceeds it you jump to a visibly different pen.',
+  'near.gapNarrow': 'Narrow gap: the ranking flips on the slightest error, and the top few look almost identical — any of them will do.',
+  'near.repeat': 'This pen\'s calibrated value comes from {n} observations; repeatability within one frame is ΔE00 {de} (that is your own precision, not a claim about the ink).',
+  'near.frameGap': 'Across observation frames the spread is ΔE00 {de} — that is the effect of changing light or screen, a different thing from repeatability.',
   'near.useCalib': 'Compare using calibrated values (where a real-application record exists)',
   'near.empty': 'No brands selected — pick at least one.',
   'near.calibrated': 'calibrated',
@@ -103,6 +108,18 @@ I18n.register('en', {
   'tool.clearFilter': 'Clear',
 
   'btn.close': 'Close',
+
+  /* ---- visual nudge ---- */
+  'nudge.toggle': 'Nudge until it matches…',
+  'nudge.hide': 'Hide nudge',
+  'nudge.anchor': 'Anchor (the colour that first came to mind)',
+  'nudge.dL': 'dark ↔ light',
+  'nudge.dC': 'dull ↔ vivid',
+  'nudge.dh': 'hue',
+  'nudge.now': 'now {hex}',
+  'nudge.needAnchor': 'Enter an anchor first — the colour that first came to mind — then use the sliders for the "but…" part.',
+  'nudge.neutral': '⚠️ The anchor is neutral, so hue has no meaning (that slider is disabled).',
+  'nudge.clipped': '⚠️ You asked for {axis} {want}; this gamut only reaches {got} — the screen cannot show anything beyond it.',
 
   /* ---- reverse-solve ---- */
   'solve.title': 'Reverse-solve: break a colour into a recipe',

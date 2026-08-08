@@ -101,6 +101,23 @@
             </div>
           </div>
 
+          <!--
+            目視微調：用「深一點／鮮一點」的語言從一個**錨點**調出目視色。
+            使用者的原話就是這個形狀——「接近 #08093D 但較深」——那不是一個 hex，
+            是錨點加方向。⚠️ 滑桿顯示的是**實得值**（describeNudge 算的），不是你要求的值：
+            深色貼著 sRGB 邊界時要求 L−6 只給得出 −3.2，那件事要看得見。
+          -->
+          <button id="nudge-toggle" class="btn-flat tiny nudge-toggle" type="button"
+                  data-i18n="nudge.toggle">推到看起來一樣…</button>
+          <div id="nudge-row" class="nudge-row" style="display:none">
+            <div class="field field-hex nudge-anchor-field">
+              <label class="field-label" for="nudge-anchor" data-i18n="nudge.anchor">錨點（第一眼想到的接近色）</label>
+              <input id="nudge-anchor" type="text" spellcheck="false" autocomplete="off" placeholder="#08093d" />
+            </div>
+            <div id="nudge-sliders" class="nudge-sliders"></div>
+            <p id="nudge-out" class="model-note nudge-out"></p>
+          </div>
+
           <div class="copy-row" id="copy-row"></div>
         </section>
 
@@ -191,6 +208,14 @@
           <input type="checkbox" id="use-calib" />
           <span data-i18n="near.useCalib">以校準值比對（有紀錄的色改用實際上色值）</span>
         </label>
+
+        <!--
+          穩健度：第 1 名與第 2 名差多少。資料一直都在，只是沒說——
+          差距大＝答案對你的目視誤差免疫，但誤差一旦超過它就跳得很遠；
+          差距小＝名次本來就是隨機的，前幾名隨便拿都行。
+          旁邊是校準的重複性：**同一個框架內**重複觀測的離散度，也就是你自己的精度。
+        -->
+        <p id="near-robust" class="model-note"></p>
 
         <div id="near-list" class="near-list" aria-live="polite"></div>
         <div id="near-empty" class="empty-hint" style="display:none" data-i18n="near.empty">

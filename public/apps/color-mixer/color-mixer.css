@@ -365,3 +365,21 @@ body {
 }
 .solve-step .pct { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
 .solve-apply { margin-top: 12px; }
+
+/* ---- 目視微調（錨點 ＋ 三個方向） ---- */
+.nudge-toggle { margin-top: 10px; }
+.nudge-row {
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.nudge-anchor-field { max-width: 260px; margin-bottom: 10px; }
+.nudge-sliders { display: flex; flex-direction: column; gap: 8px; }
+.nudge-slider { display: flex; align-items: center; gap: 10px; font-size: .8rem; }
+.nudge-slider .lab { flex: 0 0 6.5em; color: var(--muted); }
+.nudge-slider input[type=range] { flex: 1 1 auto; margin: 0; }
+.nudge-slider .val {
+  flex: 0 0 5.5em; text-align: right; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.nudge-out { margin-top: 10px; }
+.nudge-out .clip { color: #ff9800; }

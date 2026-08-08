@@ -108,7 +108,15 @@
     // 不是「我疊了什麼」，混進去日後就分不出這個 hex 是配方還是願望。
     solveTarget: null,
     solvePalette: 'rgb',
-    solveCustom: []
+    solveCustom: [],
+    // 目視微調。**只存錨點與開合，不存滑桿位置**——位置由 describeNudge(錨點, 目視色)
+    // 現算，於是「要求」與「實得」不可能對不上（見 renderNudge 的註解）。
+    nudgeAnchor: null,
+    nudgeOpen: false,
+    // 上一次滑桿**要求**了什麼、實際拿到什麼。這是輸入的紀錄，不是算出來的結果——
+    // 滑桿位置仍由 describeNudge 現算（見 renderNudge）。色域到頂只有在事件當下
+    // 知道得了，事後任何方法都推不回來。
+    nudgeClipped: null
   };
   var poolSize = {};        // 各品牌實際的比對池大小（由該品牌自己的 nearest 算出）
   var detailCtx = null;     // 明細 Modal 現在開的是哪一筆
@@ -150,7 +158,8 @@
     var qs = Lib.encodeState({ model: state.model, substrate: state.substrate,
                                observed: state.observed, stack: state.stack,
                                solveTarget: state.solveTarget, solvePalette: state.solvePalette,
-                               solveCustom: state.solveCustom });
+                               solveCustom: state.solveCustom,
+                               anchor: state.nudgeAnchor });
     try { history.replaceState(null, '', '?' + qs); } catch (e) { /* file:// 下會丟，忽略 */ }
   }
   function readUrl() {
@@ -163,6 +172,8 @@
     state.solveTarget = s.solveTarget || null;
     state.solvePalette = s.solvePalette || 'rgb';
     state.solveCustom = s.solveCustom || [];
+    state.nudgeAnchor = s.anchor || null;
+    state.nudgeOpen = !!s.anchor;      // 帶著錨點的連結打開就該看得到那三根滑桿
     return true;
   }
 
@@ -295,6 +306,39 @@
       });
   }
 
+  /**
+   * 穩健度：第 1 名與第 2 名差多少，以及（有校準時）你自己的重複性。
+   *
+   * **這兩個數字資料裡一直都在，只是沒說。** 它們回答的是同一個問題的兩半——
+   * 「我目視的不準，這個答案還算數嗎」：
+   *   · 差距**大**（稀疏區）＝ 答案對小誤差完全免疫，但誤差一旦超過它就跳得很遠。
+   *   · 差距**小**（密集區）＝ 名次本來就是隨機的，前幾名隨便拿都行。
+   *     實測：目標 #255da7 時目視誤差 ΔE00 3 會讓第 1 名 100% 換人，
+   *     但換到的筆只差 ΔE00 2.97——**名次翻動不代表答案變了**。
+   * ⚠️ 所以這裡刻意**不說「準／不準」**，只給差距與它的讀法。
+   */
+  function renderRobust(merged, chosen) {
+    var out = [];
+    if (merged.length >= 2) {
+      var gap = merged[1].deltaE - merged[0].deltaE;
+      out.push(t('near.gap', { gap: gap.toFixed(2) }) + ' '
+        + t(gap >= 3 ? 'near.gapWide' : 'near.gapNarrow'));
+    }
+    // 重複性：只有同一個框架內重複觀測過才算得出來，而且它是**你的精度**，
+    // 不是對墨水的宣稱。跨框架的差距是另一回事，分開講。
+    if (state.useCalib && state.substrate && merged.length) {
+      var top = merged[0];
+      var sum = Lib.calibrationSummary(top.brand, top.code, state.substrate);
+      if (sum && sum.n > 1) {
+        if (sum.repeatability !== null) {
+          out.push(t('near.repeat', { n: sum.n, de: sum.repeatability.toFixed(2) }));
+        }
+        if (sum.frameGap !== null) out.push(t('near.frameGap', { de: sum.frameGap.toFixed(2) }));
+      }
+    }
+    $('#near-robust').html(out.join('　'));
+  }
+
   function renderNear() {
     var chosen = BRANDS.filter(function (b) { return state.brands.indexOf(b.id) >= 0; });
     $('#near-empty').toggle(chosen.length === 0);
@@ -303,6 +347,7 @@
     var merged = Lib.mergeNearest(nearestLists(), NEAR_N);
     var total = chosen.reduce(function (s, b) { return s + (poolSize[b.id] || 0); }, 0);
     $('#near-pool').text(t('near.pool', { n: total, brands: chosen.length }));
+    renderRobust(merged, chosen);
 
     $('#near-list').html(merged.map(function (it) {
       var rgb = Lib.hexToRgb(it.hex);
@@ -363,6 +408,66 @@
   }
 
   // ---- 全頁重繪 ---------------------------------------------------------
+
+  // ---- 渲染：目視微調（錨點 ＋ 三個方向） --------------------------------
+
+  /**
+   * 三根滑桿。
+   *
+   * ⚠️ **控制器不保存滑桿位置**——位置一律由 `describeNudge(錨點, 目視色)` 現算
+   *    （同檔頭那條「不保存計算結果」）。這不只是潔癖：滑桿要求 L−6 而深色貼著
+   *    sRGB 邊界只給得出 −3.2 時，**現算的位置就是實得值**，畫面與事實不可能對不上。
+   *    若另存一份「要求值」，畫面會顯示一個做不到的數字。
+   */
+  var NUDGE_AXES = [
+    { k: 'dL', min: -40, max: 40, step: 0.5, unit: '' },
+    { k: 'dC', min: -40, max: 40, step: 0.5, unit: '' },
+    { k: 'dh', min: -60, max: 60, step: 1, unit: '°' }
+  ];
+
+  function nudgeDelta() {
+    if (!state.nudgeAnchor || !state.observed) return { dL: 0, dC: 0, dh: 0, hueDefined: true };
+    return Lib.describeNudge(state.nudgeAnchor, state.observed)
+        || { dL: 0, dC: 0, dh: 0, hueDefined: true };
+  }
+
+  function renderNudge() {
+    $('#nudge-row').toggle(state.nudgeOpen);
+    $('#nudge-toggle').text(t(state.nudgeOpen ? 'nudge.hide' : 'nudge.toggle'));
+    if (!state.nudgeOpen) return;
+    $('#nudge-anchor').val(state.nudgeAnchor || '');
+
+    var d = nudgeDelta(), on = !!state.nudgeAnchor;
+    $('#nudge-sliders').html(NUDGE_AXES.map(function (ax) {
+      var v = d[ax.k] || 0;
+      // 色相對中性色無意義——滑桿要停用，不是讓它動了卻沒反應
+      var dead = ax.k === 'dh' && !d.hueDefined;
+      return '<div class="nudge-slider">'
+        + '<span class="lab">' + esc(t('nudge.' + ax.k)) + '</span>'
+        + '<input type="range" data-ax="' + ax.k + '" min="' + ax.min + '" max="' + ax.max
+        + '" step="' + ax.step + '" value="' + v.toFixed(1) + '"'
+        + (on && !dead ? '' : ' disabled') + ' />'
+        + '<span class="val">' + (v >= 0 ? '+' : '') + v.toFixed(1) + ax.unit + '</span>'
+        + '</div>';
+    }).join(''));
+
+    if (!on) { $('#nudge-out').text(t('nudge.needAnchor')); return; }
+    var parts = [t('nudge.now', { hex: state.observed || state.nudgeAnchor })];
+    if (!d.hueDefined) parts.push('<span class="clip">' + t('nudge.neutral') + '</span>');
+    // 色域到頂：**只有滑桿事件本身知道「你要求了什麼」**，所以在那裡比對、記在
+    // state.nudgeClipped，這裡負責顯示。
+    // ⚠️ 第一版是用「探針」猜的——沿該軸再推一步、看顏色變不變。錯在**色域邊界不是硬牆**：
+    //    越推越靠近角落，每一步都還是會變一點點，於是實測要求 L−40、實得 −2.1 的情形
+    //    探針照樣「有變」，**警示一次都沒出現過**。要求值是輸入、不是算得出來的東西，
+    //    猜不到就別猜。
+    var cl = state.nudgeClipped;
+    if (cl && Math.abs(cl.want - cl.got) > 0.5) {
+      parts.push('<span class="clip">'
+        + t('nudge.clipped', { axis: t('nudge.' + cl.k),
+                               want: cl.want.toFixed(1), got: cl.got.toFixed(1) }) + '</span>');
+    }
+    $('#nudge-out').html(parts.join('　'));
+  }
 
   // ---- 渲染：反解（拆色） -----------------------------------------------
 
@@ -457,6 +562,7 @@
 
   function renderAll() {
     renderCanvas();
+    renderNudge();
     renderLayers();
     renderModels();
     renderSolve();
@@ -712,6 +818,37 @@
       state.stack = Lib.normalizeStack({ base: v, layers: state.stack.layers });
       state.substrate = null;      // 手動改底色＝不再宣稱是某個基材
       renderSubstrates();
+      renderAll();
+    });
+
+    // 目視微調
+    $('#nudge-toggle').on('click', function () {
+      state.nudgeOpen = !state.nudgeOpen;
+      // 第一次打開就沒錨點時，拿目視色或計算值當起點——空手看三根停用的滑桿沒有意義
+      if (state.nudgeOpen && !state.nudgeAnchor) state.nudgeAnchor = discColor().hex;
+      renderAll();
+    });
+    $('#nudge-anchor').on('change', function () {
+      var v = String(this.value || '').trim();
+      if (!v) { state.nudgeAnchor = null; renderAll(); return; }
+      if (!Lib.isHex(v)) {
+        toast(t('toast.badHex', { v: v }), 'red');
+        $('#nudge-anchor').val(state.nudgeAnchor || ''); return;
+      }
+      state.nudgeAnchor = Lib.rgbToHex(Lib.hexToRgb(v));
+      state.nudgeClipped = null;      // 換了錨點，上一次的「要求 vs 實得」就不成立了
+      // 換錨點時目視色**不動**——動的是三根滑桿的讀數。錨點是「我從哪裡出發」，
+      // 換出發點不該改變我已經調到的那個顏色。
+      renderAll();
+    });
+    $('#nudge-sliders').on('input', 'input[type=range]', function () {
+      if (!state.nudgeAnchor) return;
+      var ax = $(this).data('ax'), want = +this.value;
+      var d = nudgeDelta();
+      d[ax] = want;
+      state.observed = Lib.nudge(state.nudgeAnchor, d);
+      var got = Lib.describeNudge(state.nudgeAnchor, state.observed);
+      state.nudgeClipped = { k: ax, want: want, got: got ? (got[ax] || 0) : want };
       renderAll();
     });
 

@@ -109,8 +109,9 @@
  *       ⚠️ `reachable` 為 false 時 `dE` 就是**做不到的下限**，不是暫時沒調好。
  *   PALETTES（rgb／cmy／cmyk）· PALETTE_IDS · EXACT_CONVEX
  *   normalizeStack(raw) → Stack                               補預設值、夾範圍（不改輸入）
- *   encodeState(state) → 'm=…&b=…&o=…&t=…&p=…&l=…'            網址列＝存檔（無前導 ?）
- *       state = { model, substrate, observed, solveTarget, solvePalette, solveCustom, stack }。
+ *   encodeState(state) → 'm=…&b=…&o=…&a=…&t=…&p=…&l=…'        網址列＝存檔（無前導 ?）
+ *       state = { model, substrate, observed, anchor, solveTarget, solvePalette,
+ *                 solveCustom, stack }。
  *       `observed` 是**目視色**——使用者看到的顏色，不參與合成，故是 state 的同層欄位
  *       而不是 stack 的一部分。`solve*` 三個是反解的參數，同理不進 stack。
  *   decodeState(qs) → state | null                            壞字串回 null，不丟例外
@@ -118,6 +119,14 @@
  *   substrateOf(code, substrates) → Substrate | null
  *   hasCalibration(brand, code, substrate, calib) → boolean   要標記徽章時問這支，見其註解
  *   calibrationFor(brand, code, calib) → Obs[]                某支筆的所有校準紀錄
+ *   calibrationSummary(brand, code, substrate, calib)         **多列觀測的聚合**
+ *       → { n, hex, obs, contexts, repeatability, frameGap } | null
+ *       ⚠️ 一組 (筆,基材,層數) 可以有多列（目視值取決於光線／螢幕／觀察者，
+ *          「有唯一真值」不成立）。`repeatability`（同框架）與 `frameGap`（跨框架）
+ *          是**兩件不同的事**，不可混談——只有前者是「觀察者自己的精度」。
+ *   nudge(anchorHex, {dL,dC,dh}) → hex                        從錨點用「深/鮮/色相」調色
+ *   describeNudge(anchorHex, hex) → { dL, dC, dh, hueDefined }
+ *       ⚠️ 呼叫端要顯示**這支算出來的值**，不是滑桿的值——色域到頂時兩者不同。
  *   calibratedColors(colors, brand, substrateCode, calib) → Color[]
  *       把有校準紀錄的色的 hex 換成校準值（**不改輸入**，回新陣列）；無紀錄者原樣留下
  *   hexToRgb · rgbToHex · rgbToHsl · rgbToLab · deltaE(ΔE00) · deltaEBand
@@ -332,6 +341,89 @@
       b: Math.round(clamp(cur.b, 0, 255)),
       steps: steps
     };
+  }
+
+  // ---- 目視微調：用「深一點／鮮一點」的語言描述一個顏色 --------------------
+
+  /**
+   * Lab → sRGB。共用件 `color-metric.js` 只有正向的 `rgbToLab`，這裡是它的反向。
+   *
+   * ⚠️ **用的必須是 `rgbToLab` 那個四位數矩陣的精確反矩陣**，不是別處抄來的
+   *    「標準 sRGB 反矩陣」——後者對應的是未捨入的原始矩陣，來回會有肉眼看不見
+   *    但足以讓 hex 差一階的殘差，而那會讓「微調 0 就該回到原色」這件事不成立。
+   * ⚠️ **刻意留在本 app、不放進共用件**：目前只有這裡需要它。共用件多一個函式
+   *    就是多 17 份複製要同步（SHARED_LIBRARY_GUIDELINES §4）——**第二個消費端
+   *    出現時再抽**，那是家族一路記著的順序。
+   */
+  function labToRgb(L, A, B) {
+    var fy = (L + 16) / 116, fx = fy + A / 500, fz = fy - B / 200;
+    function finv(t) { var c = t * t * t; return c > 0.008856 ? c : (t - 16 / 116) / 7.787; }
+    var X = finv(fx) * 0.95047, Y = finv(fy), Z = finv(fz) * 1.08883;
+    var r = 3.2406254773 * X - 1.5372079722 * Y - 0.4986285987 * Z;
+    var g = -0.9689307147 * X + 1.8757560609 * Y + 0.0415175238 * Z;
+    var b = 0.0557101204 * X - 0.2040210506 * Y + 1.0569959423 * Z;
+    function enc(v) {
+      v = clamp01(v);
+      return 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
+    }
+    return { r: enc(r), g: enc(g), b: enc(b) };
+  }
+
+  /**
+   * 從一個**錨點**出發，用三個方向調出一個顏色。
+   *
+   * 這是照著人講顏色的方式做的：使用者的原話是「接近 `#08093D` **但較深**」、
+   * 「接近 `#08093D` **但較亮些**」——那不是一個 hex，是**一個錨點加一個方向**。
+   * 所以三根滑桿就是 Lab 的 LCh 三軸：明度 L\*、彩度 C\*、色相 h°，
+   * 分別對應「深／淺」「鮮／濁」「偏哪個色」。
+   *
+   * ⚠️ 它改善的是**輸入方式**（把「說出這是什麼顏色」換成「調到看起來像」），
+   *    **不是消除光線與螢幕的誤差**——那是拿螢幕比紙，跨介質，抵消不了。
+   *    只有「螢幕比螢幕」的兩塊色才會抵消。
+   *
+   * d = { dL, dC, dh }（缺的當 0）。**純函式。** 壞錨點回 null。
+   */
+  function nudge(anchorHex, d) {
+    if (!isHex(anchorHex)) return null;
+    var c = hexToRgb(hexNorm(anchorHex));
+    var lab = rgbToLab(c.r, c.g, c.b);
+    var C = Math.sqrt(lab[1] * lab[1] + lab[2] * lab[2]);
+    var h = Math.atan2(lab[2], lab[1]);
+    var o = d || {};
+    var L2 = clamp(lab[0] + (o.dL || 0), 0, 100);
+    var C2 = Math.max(0, C + (o.dC || 0));
+    var h2 = h + (o.dh || 0) * Math.PI / 180;
+    return rgbToHex(labToRgb(L2, C2 * Math.cos(h2), C2 * Math.sin(h2)));
+  }
+
+  /**
+   * `nudge` 的反向：這個顏色相對錨點，是深了幾分、鮮了幾分、偏了幾度。
+   *
+   * ⚠️ **呼叫端要顯示的是這支算出來的值，不是滑桿的值。** 兩者常常不一樣，原因有二，
+   *    而**兩個都該讓使用者看見**（同 circle-text 恆顯示「實際每字弧長」那條）：
+   *      ① **色域到頂**：`#08093d` 要求 L−6 只給得出 −3.2，因為它已經貼著 sRGB 邊界。
+   *      ② **中性色的色相無定義**：C≈0 時 h 是 atan2(0,0) 的產物，
+   *         灰色轉一下色相會回報 `dh = −63.2` 這種垃圾值。
+   *    ② 已在這裡擋掉（回 `hueDefined:false`、`dh:0`）；① 交給呼叫端比對後標示。
+   */
+  var NEUTRAL_C = 1.0;               // Lab 彩度低於此就當中性色，色相無意義
+
+  function describeNudge(anchorHex, hex) {
+    if (!isHex(anchorHex) || !isHex(hex)) return null;
+    function lch(x) {
+      var c = hexToRgb(hexNorm(x)), l = rgbToLab(c.r, c.g, c.b);
+      var h = Math.atan2(l[2], l[1]) * 180 / Math.PI;
+      return { L: l[0], C: Math.sqrt(l[1] * l[1] + l[2] * l[2]), h: h < 0 ? h + 360 : h };
+    }
+    var a = lch(anchorHex), b = lch(hex);
+    var hueDefined = a.C >= NEUTRAL_C && b.C >= NEUTRAL_C;
+    var dh = 0;
+    if (hueDefined) {
+      dh = b.h - a.h;
+      while (dh > 180) dh -= 360;
+      while (dh < -180) dh += 360;    // 色相是環狀的：359° → 1° 是 +2 不是 −358
+    }
+    return { dL: b.L - a.L, dC: b.C - a.C, dh: dh, hueDefined: hueDefined };
   }
 
   // ---- 反解（拆色）：給目標色，回「怎麼疊才最接近」-------------------------
@@ -619,7 +711,7 @@
   // ---- 網址狀態（參數全寫在網址列＝複製連結就是存檔，同 circle-text） ------
 
   /**
-   * 格式：`m=<model>&b=<hex6>&s=<substrate>&o=<hex6>&t=<hex6>&p=<id>&pc=<hex6>_…&l=<layer>_…`
+   * 格式：`m=<model>&b=<hex6>&s=<substrate>&o=<hex6>&a=<hex6>&t=<hex6>&p=<id>&pc=<hex6>_…&l=<layer>_…`
    *   layer ＝ `<hex6>.<alpha 0-100>` 或 `<hex6>.<alpha>.<brand>~<code>`
    * 刻意不用 JSON＋base64：網址要看得懂、手改得動、diff 得出來。
    */
@@ -634,6 +726,11 @@
     // 日後就分不出「這個 hex 是算的還是看的」。
     if (isHex(s.observed)) parts.push('o=' + hexNorm(s.observed).slice(1));
     if (s.substrate) parts.push('s=' + encodeURIComponent(s.substrate));
+    // 目視微調的**錨點**（治理文件的 fd_hex_ref）。它是紀錄的一部分——
+    // 「接近 #08093D 但較深」裡的 #08093D 就是它，丟掉就只剩結論、沒有從哪裡來。
+    // ⚠️ 三根滑桿的位置**刻意不進網址**：由 describeNudge(錨點, 目視色) 現算，
+    //    存兩份就會有「網址說 L−6、實際只到 −3.2」這種對不上的狀態。
+    if (isHex(s.anchor)) parts.push('a=' + hexNorm(s.anchor).slice(1));
     // 反解：目標色與基底調色盤。**只在有目標時才寫**，沒拆色的連結不該長出空參數。
     if (isHex(s.solveTarget)) {
       parts.push('t=' + hexNorm(s.solveTarget).slice(1));
@@ -689,6 +786,7 @@
       model: MODELS.indexOf(q.m) >= 0 ? q.m : DEFAULT_MODEL,
       substrate: q.s || null,
       observed: isHex(q.o) ? hexNorm(q.o) : null,
+      anchor: isHex(q.a) ? hexNorm(q.a) : null,
       solveTarget: isHex(q.t) ? hexNorm(q.t) : null,
       solvePalette: PALETTE_IDS.indexOf(q.p) >= 0 ? q.p : 'rgb',
       solveCustom: custom.slice(0, MAX_LAYERS),
@@ -757,14 +855,95 @@
    * **不改輸入**：有紀錄的產生新物件，其餘原樣沿用（同一個參考，省記憶體也免誤改）。
    * 多筆同 (brand, code, substrate) 時取層數最小的那筆——一層是最常見的下筆方式。
    */
+  /** 一組 hex 的 Lab 平均，回 hex。空陣列回 null。 */
+  function meanHex(hexes) {
+    var ls = hexes.filter(isHex).map(function (h) {
+      var c = hexToRgb(hexNorm(h));
+      return rgbToLab(c.r, c.g, c.b);
+    });
+    if (!ls.length) return null;
+    var m = [0, 1, 2].map(function (i) {
+      return ls.reduce(function (s, l) { return s + l[i]; }, 0) / ls.length;
+    });
+    return rgbToHex(labToRgb(m[0], m[1], m[2]));
+  }
+
+  /** 一組 hex 相對其平均的平均 ΔE00。少於兩個回 null（一個點沒有離散度）。 */
+  function spreadOf(hexes) {
+    var hs = hexes.filter(isHex);
+    if (hs.length < 2) return null;
+    var mid = meanHex(hs), c = hexToRgb(mid), mLab = rgbToLab(c.r, c.g, c.b);
+    return hs.reduce(function (s, h) {
+      var q = hexToRgb(hexNorm(h));
+      return s + deltaE(rgbToLab(q.r, q.g, q.b), mLab);
+    }, 0) / hs.length;
+  }
+
+  /**
+   * 把某支筆在某基材上的**所有**觀測聚合成一個代表值，並把兩種離散度分開報。
+   *
+   * ⚠️ **一組 (筆, 基材, 層數) 可以有多列，這是設計不是重複資料**
+   *    （db_artcolor CHG000050 拿掉了唯一約束）。理由：目視值取決於工作區的光線、
+   *    螢幕的色準、以及觀察者的敏銳度——「有唯一真值」這句話不成立。
+   *
+   * ⚠️ **兩種離散度不可混談，這是整個設計的重點：**
+   *    · `repeatability` ＝ **同一個框架內**重複觀測的差距。這是**觀察者自己的精度**，
+   *      而且是唯一一個**不需要真值就量得出來**的誤差——它不是對墨水的宣稱。
+   *    · `frameGap` ＝ **跨框架**的差距（換了光線／螢幕）。那不是誤差，是另一個問題的答案。
+   *    把兩者加在一起平均，會得到一個什麼都不是的數字。
+   *
+   * ⚠️ **`context` 為空的列自成一組，不與其他空的併**——「框架沒記錄」不等於「同框架」
+   *    （同 db_artcolor 對 `fd_context_idx` 的欄位註解）。所以它們不產生重複性。
+   *
+   * 回 { n, hex, layers, obs, contexts:[{code,n,hex,spread}], repeatability, frameGap }，
+   * 沒有紀錄回 null。**純函式。**
+   */
+  function calibrationSummary(brand, code, substrateCode, calib) {
+    var src = calib || global.CM_CALIBRATION || [];
+    var rows = src.filter(function (o) {
+      return o && o.brand === brand && o.code === code
+        && o.substrate === substrateCode && isHex(o.hex);
+    });
+    if (!rows.length) return null;
+    // 只取層數最少的那一批（＝最接近「就這麼畫一次」的那個值）
+    var minL = rows.reduce(function (m, o) { return Math.min(m, o.layers || 1); }, Infinity);
+    rows = rows.filter(function (o) { return (o.layers || 1) === minL; });
+
+    var byCtx = {}, anon = [];
+    rows.forEach(function (o) {
+      if (o.context) { (byCtx[o.context] = byCtx[o.context] || []).push(o); } else { anon.push(o); }
+    });
+    var contexts = Object.keys(byCtx).sort().map(function (k) {
+      var hs = byCtx[k].map(function (o) { return o.hex; });
+      return { code: k, n: hs.length, hex: meanHex(hs), spread: spreadOf(hs) };
+    });
+    // 重複性＝各框架內離散度的平均，只計得出來的那些（n≥2）
+    var withSpread = contexts.filter(function (c) { return c.spread !== null; });
+    var repeatability = withSpread.length
+      ? withSpread.reduce(function (s, c) { return s + c.spread; }, 0) / withSpread.length : null;
+    // 框架落差＝各框架代表值之間的離散度（至少兩個框架才有）
+    var frameGap = contexts.length >= 2
+      ? spreadOf(contexts.map(function (c) { return c.hex; })) : null;
+
+    return {
+      n: rows.length, layers: minL,
+      hex: meanHex(rows.map(function (o) { return o.hex; })),
+      obs: rows.slice(), contexts: contexts, anonymous: anon.length,
+      repeatability: repeatability, frameGap: frameGap
+    };
+  }
+
   function calibratedColors(colors, brand, substrateCode, calib) {
     var src = calib || global.CM_CALIBRATION || [];
     if (!substrateCode) return (colors || []).slice();
     var map = {};
-    src.forEach(function (o) {
-      if (o.brand !== brand || o.substrate !== substrateCode || !isHex(o.hex)) return;
-      var prev = map[o.code];
-      if (!prev || (o.layers || 1) < (prev.layers || 1)) map[o.code] = o;
+    // ⚠️ 原本這裡是「層數最少者勝」——同層數只有一列，所以無歧義。
+    //    CHG000050 拿掉唯一約束之後同層數可以有多列，那條規則會**任意**挑一列
+    //    （實際上是輸入順序的第一列），而且不會報錯。改為走 calibrationSummary 聚合。
+    (colors || []).forEach(function (c) {
+      if (map[c.code]) return;
+      var s = calibrationSummary(brand, c.code, substrateCode, src);
+      if (s) map[c.code] = { hex: s.hex, n: s.n, layers: s.layers };
     });
     return (colors || []).map(function (c) {
       var o = map[c.code];
@@ -823,9 +1002,11 @@
     ADDITIVE: ADDITIVE, SUBTRACTIVE: SUBTRACTIVE, MODEL_NOTE: MODEL_NOTE, R_MIN: R_MIN,
     PALETTES: PALETTES, PALETTE_IDS: PALETTE_IDS, EXACT_CONVEX: EXACT_CONVEX,
     compose: compose, over: over, solve: solve, normalizeStack: normalizeStack,
+    nudge: nudge, describeNudge: describeNudge, labToRgb: labToRgb,
     encodeState: encodeState, decodeState: decodeState,
     mergeNearest: mergeNearest,
     substrateOf: substrateOf, calibrationFor: calibrationFor, calibratedColors: calibratedColors,
+    calibrationSummary: calibrationSummary, meanHex: meanHex, spreadOf: spreadOf,
     hasCalibration: hasCalibration,
     hexToRgb: hexToRgb, rgbToHex: rgbToHex, rgbToHsl: rgbToHsl, rgbToLab: rgbToLab,
     deltaE: deltaE, deltaEBand: deltaEBand,

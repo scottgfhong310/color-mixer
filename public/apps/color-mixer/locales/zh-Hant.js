@@ -50,6 +50,11 @@ I18n.register('zh-Hant', {
   /* ---- 最接近色 ---- */
   'near.title': 'Art Color 家族最接近的色',
   'near.pool': '正在比對 {n} 支筆（{brands} 個品牌）',
+  'near.gap': '第 1 名與第 2 名差 ΔE00 {gap}。',
+  'near.gapWide': '差距大：這個答案對小誤差免疫，但你的目視誤差一旦超過它，就會跳到看起來明顯不同的另一支筆。',
+  'near.gapNarrow': '差距小：名次本來就會因為一點點誤差而翻動，前幾名看起來幾乎一樣，隨便拿都行。',
+  'near.repeat': '這支筆的校準值來自 {n} 次觀測，同一個框架內的重複性 ΔE00 {de}（這是你自己的精度，不是對墨水的宣稱）。',
+  'near.frameGap': '跨觀測框架的差距 ΔE00 {de}——那是換了光線／螢幕的結果，與上面的重複性是兩件事。',
   'near.useCalib': '以校準值比對（有紀錄的色改用實際上色值）',
   'near.empty': '沒有符合的品牌——至少要選一個。',
   'near.calibrated': '校準',
@@ -106,6 +111,18 @@ I18n.register('zh-Hant', {
   'tool.clearFilter': '清除',
 
   'btn.close': '關閉',
+
+  /* ---- 目視微調 ---- */
+  'nudge.toggle': '推到看起來一樣…',
+  'nudge.hide': '收起微調',
+  'nudge.anchor': '錨點（第一眼想到的接近色）',
+  'nudge.dL': '深 ↔ 淺',
+  'nudge.dC': '濁 ↔ 鮮',
+  'nudge.dh': '色相',
+  'nudge.now': '現在是 {hex}',
+  'nudge.needAnchor': '先填一個錨點——你第一眼覺得接近的那個顏色，再用滑桿說出它「但是⋯⋯」的部分。',
+  'nudge.neutral': '⚠️ 錨點是中性色，色相沒有意義（已停用該滑桿）。',
+  'nudge.clipped': '⚠️ 你要求「{axis}」{want}，這個色域只給得出 {got}——螢幕顯示不出更遠的色。',
 
   /* ---- 反解（拆色） ---- */
   'solve.title': '反解：把一個顏色拆成配方',

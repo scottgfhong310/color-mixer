@@ -178,7 +178,7 @@ check('C1', 'encode → decode 來回一致', () => {
   //    2026-08-08 反解上線時它紅過一次——decode 多回三個欄位而這裡沒有；
   //    當時的誘惑是只比對舊欄位讓它變綠，那會讓「新參數存不存得進網址」從此沒有人驗。
   const st = {
-    model: 'glaze', substrate: 'xuan-natural', observed: '#171159',
+    model: 'glaze', substrate: 'xuan-natural', observed: '#171159', anchor: '#08093d',
     solveTarget: '#22175e', solvePalette: 'custom', solveCustom: ['#ff0000', '#0000ff'],
     stack: { base: '#f0e6d2', layers: [
       { hex: '#08093d', alpha: 0.6, src: { brand: 'copic', code: 'B39' } },
@@ -189,12 +189,13 @@ check('C1', 'encode → decode 來回一致', () => {
   if (JSON.stringify(back) !== JSON.stringify({
     model: st.model, substrate: st.substrate,
     observed: st.observed || null,          // 目視色也走網址（2026-08-08 加）
+    anchor: st.anchor || null,              // 目視微調的錨點（＝治理文件的 fd_hex_ref）
     solveTarget: st.solveTarget, solvePalette: st.solvePalette, solveCustom: st.solveCustom,
     stack: L.normalizeStack(st.stack)
   })) throw new Error('來回不一致：' + JSON.stringify(back));
   // 沒有反解時不該長出空參數——分享連結會被無意義的 t=&p= 撐大
   const bare = L.encodeState({ model: 'glaze', stack: { base: '#ffffff' } });
-  if (/[?&]?t=|[?&]p=/.test(bare)) throw new Error('沒設目標卻寫了反解參數：' + bare);
+  if (/(^|&)(t|p|a|o)=/.test(bare)) throw new Error('沒設值卻寫了選用參數：' + bare);
   return { ok: true, detail: '?' + L.encodeState(st) };
 });
 
@@ -360,6 +361,111 @@ check('G7', '被多個面板讀到的 state 欄位，改它的 handler 必須整
   });
   if (bad.length) throw new Error('改了共享欄位卻沒有整頁重繪：' + bad.join('、'));
   return { ok: true, detail: `${shared.length} 個共享欄位的每個賦值點都接 renderAll()` };
+});
+
+// ---- H：目視微調與「不精確有多要緊」------------------------------------
+//
+// 這一段守的是一件事：**目視值不精確是前提，不是缺陷。** 所以程式不准假裝它精確
+// （中性色的色相、色域到頂），也不准把兩種不同的離散度混成一個數字。
+
+check('H1', 'Lab 來回閉合、中性色的色相不編數字、微調是純函式', () => {
+  // ① 微調 0 必須原色不動。不閉合的話「我什麼都沒調」就會改到顏色。
+  let off = 0, n = 0, ex = '';
+  for (let r = 0; r < 256; r += 17) for (let g = 0; g < 256; g += 17) for (let b = 0; b < 256; b += 17) {
+    const hex = '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+    n++;
+    if (L.nudge(hex, {}) !== hex) { off++; if (!ex) ex = hex + '→' + L.nudge(hex, {}); }
+  }
+  if (off) throw new Error(`${off}/${n} 色微調 0 卻變了（例 ${ex}）——Lab 反矩陣不對`);
+  // ② 中性色：色相無定義，不可回一個看起來像真的數字
+  ['#ffffff', '#000000', '#7f7f7f'].forEach((g) => {
+    const d = L.describeNudge(g, L.nudge(g, { dh: 30 }));
+    if (d.hueDefined) throw new Error(`${g} 被當成有色相`);
+    if (d.dh !== 0) throw new Error(`${g} 回了色相差 ${d.dh}——中性色的 atan2(0,0) 是垃圾值`);
+  });
+  // ③ 有彩色仍要算得出色相
+  const c = L.describeNudge('#255da7', L.nudge('#255da7', { dh: 10 }));
+  if (!c.hueDefined || !(c.dh > 3)) throw new Error('有彩色的色相沒被算出來：' + JSON.stringify(c));
+  // ④ 純函式 ＋ 壞輸入
+  const d0 = { dL: 5 }, snap = JSON.stringify(d0);
+  L.nudge('#08093d', d0);
+  if (JSON.stringify(d0) !== snap) throw new Error('nudge 改了輸入');
+  if (L.nudge('zz', {}) !== null || L.describeNudge('#fff', 'zz') !== null)
+    throw new Error('壞輸入沒回 null');
+  return { ok: true, detail: `${n} 色來回閉合、中性色 3/3 停用色相、純函式 ✔` };
+});
+
+check('H2', '兩種離散度分開報：同框架＝你的精度，跨框架＝另一回事', () => {
+  const CAL = [
+    { brand: 'b', code: 'X', substrate: 's', layers: 1, hex: '#171159', context: 'p' },
+    { brand: 'b', code: 'X', substrate: 's', layers: 1, hex: '#191360', context: 'p' },
+    { brand: 'b', code: 'X', substrate: 's', layers: 1, hex: '#0f0b45', context: 'q' },
+    { brand: 'b', code: 'X', substrate: 's', layers: 2, hex: '#05052a', context: 'p' },
+    { brand: 'b', code: 'X', substrate: 's', layers: 1, hex: '#1a1566' }            // 框架未記錄
+  ];
+  const s = L.calibrationSummary('b', 'X', 's', CAL);
+  if (!s) throw new Error('回 null');
+  if (s.obs.some((o) => o.layers === 2)) throw new Error('把 2 層的觀測混進 1 層');
+  if (s.contexts.some((c) => !c.code)) throw new Error('框架未記錄的被併成一組——那不是同框架');
+  if (s.anonymous !== 1) throw new Error('框架未記錄的列數不對：' + s.anonymous);
+  if (s.repeatability === null) throw new Error('同框架兩列卻算不出重複性');
+  if (s.frameGap === null) throw new Error('兩個框架卻算不出框架落差');
+  // ⚠️ 兩者必須是**不同的數字**——若實作偷懶把全部觀測一起算離散度，兩者會相等。
+  if (Math.abs(s.repeatability - s.frameGap) < 1e-9)
+    throw new Error('重複性與框架落差相同——八成是把兩種離散度混在一起算了');
+  // 單列時兩者都該是 null，不是 0（0 會被讀成「量過，非常一致」）
+  const one = L.calibrationSummary('b', 'X', 's', [CAL[0]]);
+  if (one.repeatability !== null || one.frameGap !== null)
+    throw new Error('只有一次觀測卻報出離散度——0 會被讀成「量過而且很一致」');
+  const snap = JSON.stringify(CAL);
+  L.calibrationSummary('b', 'X', 's', CAL);
+  if (JSON.stringify(CAL) !== snap) throw new Error('calibrationSummary 改了輸入');
+  // calibratedColors 必須走同一支聚合，不可另外挑一列
+  const cc = L.calibratedColors([{ code: 'X', hex: '#255da7' }], 'b', 's', CAL);
+  if (cc[0].hex !== s.hex) throw new Error(`calibratedColors 給 ${cc[0].hex}，聚合值是 ${s.hex}`);
+  return { ok: true, detail: `重複性 ${s.repeatability.toFixed(2)} ≠ 框架落差 ${s.frameGap.toFixed(2)}　`
+    + `層數過濾 ✔　未記錄框架不併組 ✔` };
+});
+
+check('H3', '微調與穩健度：markup 有人接、三語齊全、滑桿位置不另存一份', () => {
+  const html = read('index.html');
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ['nudge-toggle', 'nudge-row', 'nudge-anchor', 'nudge-sliders', 'nudge-out', 'near-robust']
+    .forEach((id) => {
+      if (!html.includes(`id="${id}"`)) throw new Error(`markup 少了 #${id}`);
+      if (!js.includes(`#${id}`)) throw new Error(`#${id} 沒有 handler / 沒有人寫入`);
+    });
+  // ⚠️ 滑桿位置必須由 describeNudge 現算。另存一份「要求值」就會出現
+  //    「畫面說 L−6、實際只到 −3.2」——色域到頂時那兩個數字必然不同。
+  // ⚠️ 掃的是 `var state = {…}` **這個區塊本身**，不是 `state.nudgeD` 這種取用寫法。
+  //    第一版比對取用寫法，而真實的破壞是在 state 字面值裡多一個 `nudgeD:` 屬性
+  //    ——反向驗證當場沒抓到。**檢查要對準東西實際會被寫成的樣子。**
+  const block = js.slice(js.indexOf('var state = {'), js.indexOf('var poolSize'));
+  if (!block) throw new Error('找不到 state 區塊');
+  const stored = (block.match(/^\s*(nudge[A-Za-z]*)\s*:/gm) || [])
+    .map((x) => x.trim().replace(':', ''))
+    // `nudgeClipped` 是合法的：它記的是「上一次**要求**了什麼、實得什麼」，
+    // 那是**輸入的紀錄**，不是算得出來的東西——色域到頂只有在滑桿事件當下知道得了
+    // （事後用「再推一步看變不變」猜是錯的：色域邊界不是硬牆，每一步都還會變一點點，
+    //  實測要求 L−40、實得 −2.1 也照樣「有變」，警示一次都沒出現過）。
+    .filter((k) => !['nudgeAnchor', 'nudgeOpen', 'nudgeClipped'].includes(k));
+  if (stored.length)
+    throw new Error('滑桿位置被存進 state 了（' + stored.join('、') + '）——要求值與實得值會對不上');
+  if (!/describeNudge\(/.test(js)) throw new Error('控制器沒有用 describeNudge 現算滑桿位置');
+  // 滑桿的 value 必須來自 describeNudge 的結果（nudgeDelta()），不可來自 state
+  const rn = js.slice(js.indexOf('function renderNudge'), js.indexOf('function renderSolve'));
+  if (!/nudgeDelta\(\)/.test(rn)) throw new Error('renderNudge 沒有現算滑桿位置');
+  if (/value="'\s*\+\s*state\./.test(rn)) throw new Error('滑桿 value 直接讀 state');
+  const need = ['nudge.toggle', 'nudge.anchor', 'nudge.dL', 'nudge.dC', 'nudge.dh',
+    'nudge.clipped', 'nudge.neutral', 'near.gap', 'near.gapWide', 'near.gapNarrow',
+    'near.repeat', 'near.frameGap'];
+  const miss = [];
+  ['zh-Hant', 'en', 'ja'].forEach((lg) => {
+    const src = read(`locales/${lg}.js`);
+    need.forEach((k) => { if (!src.includes(`'${k}'`)) miss.push(`${lg}:${k}`); });
+  });
+  if (miss.length) throw new Error('缺三語文案：' + miss.join(', '));
+  return { ok: true, detail: `6 個 id 有人接　滑桿位置現算 ✔　${need.length} key × 3 語 = ${need.length * 3} 個都在` };
 });
 
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {

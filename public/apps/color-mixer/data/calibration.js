@@ -73,13 +73,37 @@
   //    不是 owner 微調後認可的值——那個值只有他能給。這正是 stub 旗標存在的理由。
   global.CM_CALIBRATION = [
     { brand: 'copic-color', code: 'B39', substrate: 'a4-white', layers: 1,
-      hexRef: '#08093d', hex: '#06072f',
+      hexRef: '#08093d', hex: '#06072f', context: 'desk-led',
       note: '較深（hex 為 hexRef 明度 −8% 的佔位值，非實測）',
       sourceType: 'measured', verify: 'stub' },
+    // 同一組再記一次（同框架）——**這一列在 2026-08-08 之前存不進 DB**：
+    // rel_color_substrate 當時帶著 UNIQUE(色, 基材, 層數)，等於斷言「有唯一真值」。
+    // 目視值取決於光線／螢幕／觀察者，那句話不成立，故 CHG000050 拿掉了它。
+    // 兩列的差距＝**觀察者自己的重複性**，是唯一一個不需要真值就量得出來的誤差。
+    { brand: 'copic-color', code: 'B39', substrate: 'a4-white', layers: 1,
+      hexRef: '#08093d', hex: '#080934', context: 'desk-led',
+      note: '同框架第二次觀測（佔位值，非實測）',
+      sourceType: 'measured', verify: 'stub' },
+    // 換一個框架（窗邊日光）——它與上面兩列的差距是**框架落差**，不是重複性。
+    // 兩者混在一起平均會得到一個什麼都不是的數字，故 lib 分開報。
+    { brand: 'copic-color', code: 'B39', substrate: 'a4-white', layers: 1,
+      hexRef: '#08093d', hex: '#0b0a3a', context: 'window-day',
+      note: '窗邊日光下再看一次（佔位值，非實測）',
+      sourceType: 'measured', verify: 'stub' },
     { brand: 'copic-color', code: 'B39', substrate: 'xuan-natural', layers: 1,
-      hexRef: '#08093d', hex: '#0a0c4b',
+      hexRef: '#08093d', hex: '#0a0c4b', context: 'desk-led',
       note: '較亮些；渲開：無（hex 為 hexRef 明度 +8% 的佔位值，非實測）',
       sourceType: 'measured', verify: 'stub' }
+  ];
+
+  /**
+   * 觀測框架（db_artcolor 的 `meta_observe_context`，CHG000050）。
+   * ⚠️ 三個描述欄是**給人讀的**，不供程式推論——我們沒有分光儀也沒有螢幕特性化，
+   *    校正不了它們。程式唯一該問的是「這兩次觀測是不是同一個框架」，那是 identity。
+   */
+  global.CM_OBSERVE_CONTEXT = [
+    { code: 'desk-led', name: '書桌 LED', light: '書桌 LED 白光', display: '主要工作螢幕', observer: '（佔位）' },
+    { code: 'window-day', name: '窗邊日光', light: '窗邊日光 陰天', display: '主要工作螢幕', observer: '（佔位）' }
   ];
 
 })(typeof window !== 'undefined' ? window : globalThis);

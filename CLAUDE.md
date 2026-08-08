@@ -14,7 +14,7 @@ Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色
 
 ```bash
 npm install && npm start          # → http://localhost:3000/apps/color-mixer/
-npm run verify                    # 36 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
+npm run verify                    # 39 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
 node scripts/verify.js --selftest # 反向驗證：故意改壞，確認每條抓得到
 bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 18 個借來的檔
 ```
@@ -54,6 +54,18 @@ bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 18 個借�
 ⚠️ **改到 `state.useCalib`／`substrate`／`model`／`solve*` 的 handler 一律 `renderAll()`。**
 `#use-calib` 原本只呼叫 `renderNear()`（當年正確），反解上線後症狀是**勾了沒反應**——
 不報錯，只是安靜地繼續用型錄色。`verify.js` G7 擋著這一整類。
+
+## ⚠️ 校準值的三條紀律（目視值取決於光線／螢幕／觀察者）
+
+1. **一組 (筆, 基材, 層數) 可以有多列**（db_artcolor CHG000050 拿掉了唯一約束）。
+   消費端一律走 `Lib.calibrationSummary()` 聚合，**不可假設只有一列**——
+   舊的「層數最少者勝」在多列下會任意挑，而且不報錯。
+2. **`repeatability`（同框架）與 `frameGap`（跨框架）是兩件事**，不可加在一起平均。
+   前者是觀察者自己的精度，後者是換了光線／螢幕的結果。`verify.js` H2 擋著。
+   只有一次觀測時兩者回 `null` 不是 0——0 會被讀成「量過而且很一致」。
+3. **滑桿位置不存 state**，由 `describeNudge(錨點, 目視色)` 現算，所以畫面恆是實得值。
+   色域到頂**只有滑桿事件當下知道得了**（要求值是輸入，事後推不回來），記在 `nudgeClipped`。
+   `verify.js` H3 擋著這一整類。
 
 ## ⚠️ 兩個一定要記得的順序 / 語意陷阱
 
