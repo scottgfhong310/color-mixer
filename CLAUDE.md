@@ -1,6 +1,6 @@
 # color-mixer — Session 起手 context
 
-> 版本 v0.1｜最後更新 2026-08-07
+> 版本 v0.2｜最後更新 2026-08-08
 
 Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色 → 跨五品牌找最接近的筆，
 並顯示該色的**應用校準**紀錄（同一支筆在不同紙上實際是什麼顏色）。
@@ -14,9 +14,9 @@ Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色
 
 ```bash
 npm install && npm start          # → http://localhost:3000/apps/color-mixer/
-npm run verify                    # 23 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
+npm run verify                    # 36 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
 node scripts/verify.js --selftest # 反向驗證：故意改壞，確認每條抓得到
-bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 17 個借來的檔
+bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 18 個借來的檔
 ```
 
 **改完前端一定要跑 `sync-copies.sh`**——回灌不是一次性的（WORKFLOW A4），
@@ -38,6 +38,22 @@ bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 17 個借�
 - **三語 ＋ light/dark ＋ 防閃爍開機腳本**；共用文案照 DESIGN_GUIDELINES §6 正統表逐字
   （`verify.js` F5 條擋著）。
 - **原始碼不得含實體 NUL 位元組**（`verify.js` E1 條）。
+
+## ⚠️ 反解（拆色）的三條紀律
+
+`Lib.solve()` 給目標色反推配方。它解得動是因為**四個模型的疊層都是「某空間裡的凸組合」**
+（`SPACE` 那張表是模型的**唯一**定義，`over()` 由它導出——求解器不是模型的第二份實作）。
+
+1. **`EXACT_CONVEX` 是量出來的，不是推導的。** `oklab` **不在**裡面（逐層會被夾回 sRGB
+   色域）。新增模型時要先量再決定它進不進這張表，`verify.js` G1 兩個方向都擋著。
+2. **`reachable` ＝ 結果與目標同一個 hex**，不是「凸包距離 < 容差」也不是「ΔE00 < 某個數」。
+   前者實測 13–20% 假陰性（目標 hex 本身已量化），後者那個門檻會是憑感覺挑的。
+3. **`layers` 調色盤是校準值唯一進得到反解的路徑**（其餘調色盤沒有「哪支筆」的身分）。
+   它走 `Lib.calibratedColors()`，不自己再比對一次；`verify.js` G6 擋著。
+
+⚠️ **改到 `state.useCalib`／`substrate`／`model`／`solve*` 的 handler 一律 `renderAll()`。**
+`#use-calib` 原本只呼叫 `renderNear()`（當年正確），反解上線後症狀是**勾了沒反應**——
+不報錯，只是安靜地繼續用型錄色。`verify.js` G7 擋著這一整類。
 
 ## ⚠️ 兩個一定要記得的順序 / 語意陷阱
 

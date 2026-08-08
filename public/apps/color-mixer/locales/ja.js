@@ -104,6 +104,31 @@ I18n.register('ja', {
 
   'btn.close': '閉じる',
 
+  /* ---- 逆算（色の分解） ---- */
+  'solve.title': '逆算：色をレシピに分解する',
+  'solve.ctx': '下地 {base}　モデル {model}',
+  'solve.target': '目標色',
+  'solve.useDisc': '円の色を使う',
+  'solve.clear': 'クリア',
+  'solve.palette': 'ベース顔料',
+  'solve.pal.rgb': 'RGB 三原色',
+  'solve.pal.cmy': 'CMY',
+  'solve.pal.cmyk': 'CMYK',
+  'solve.pal.layers': 'キャンバス上の顔料層',
+  'solve.pal.custom': 'カスタム',
+  'solve.customPh': '空白区切り、例：#ff0000 #00ff00 #0000ff',
+  'solve.empty': '目標色を入力するか、「円の色を使う」を押してください。',
+  'solve.noPalette': 'このパレットは空です——少なくとも 1 色を入力するか、先に顔料層を追加してください。',
+  'solve.usingCalib': '（顔料はこの下地の校正値を使用）',
+  'solve.wanted': '目標',
+  'solve.got': 'この顔料で最も近い色',
+  'solve.reachable': '完全一致',
+  'solve.unreachable': '完全には一致しない',
+  'solve.apply': 'キャンバスに適用（現在の層を置き換え）',
+  'solve.exactYes': 'このモデルの重ね合わせは厳密な凸結合なので、「一致するかどうか」は試行ではなく計算で分かります。',
+  'solve.exactNo': '⚠️ OKLab は各層の結果を sRGB 色域に丸め戻すため、重ね合わせは厳密な凸結合ではありません——この解は非常に良い近似にとどまります。',
+  'solve.floor': 'ΔE00 {de} は<strong>この下地でこの顔料が到達できる限界</strong>であり、調整不足ではありません——これ以上は近づきません。顔料を替える／増やすか、下地を替えてください。',
+
   /* ---- トースト ---- */
   'toast.copied': 'コピーしました',
   'toast.copiedValue': 'コピーしました：{v}',
@@ -112,5 +137,6 @@ I18n.register('ja', {
   'toast.reset': 'クリアしました',
   'toast.badHex': '有効な色ではありません：{v}',
   'toast.layerAdded': '追加しました：{n}',
-  'toast.linkCopied': '共有リンクをコピーしました'
+  'toast.linkCopied': '共有リンクをコピーしました',
+  'toast.solveApplied': 'レシピを適用しました：{n} 層'
 }, '日本語');

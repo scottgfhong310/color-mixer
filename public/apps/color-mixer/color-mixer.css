@@ -311,3 +311,57 @@ body {
 .side-tools > .side-tool:first-child:has(.app-icon) { margin-bottom: var(--tool-gap); }
 
 @media print { .side-tools { display: none !important; } }
+
+/* ---- 反解（拆色） ----
+   ⚠️ 這一段刻意**不包 overflow-x: auto**。v1.20 在 caran-dache-color/sets.css
+      踩過：多一個捲動容器，sticky 的參考點就從視窗換成它，畫面上只看得出「有點歪」。
+      本段沒有 sticky，但同一個理由——不要無故多一層捲動脈絡。 */
+.solve-top { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+.solve-top .field { flex: 1 1 200px; }
+.solve-fills { display: flex; gap: 8px; flex-wrap: wrap; }
+.solve-pal { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.solve-pal .field-label { margin-bottom: 0; }
+.solve-custom { margin-top: 10px; }
+.solve-custom input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.solve-out { margin-top: 14px; }
+.solve-verdict {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: .84rem; margin-bottom: 12px;
+}
+.solve-verdict .tag {
+  border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600;
+  border: 1px solid currentColor;
+}
+.solve-verdict .tag.ok { color: #4caf50; }
+.solve-verdict .tag.no { color: #ff9800; }
+.solve-verdict .de {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--muted);
+}
+
+/* 目標 vs 算得到的，並排——**兩塊都要在**：只給結果的話，使用者看不出差在哪 */
+.solve-pair { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.solve-pair figure { margin: 0; flex: 1 1 140px; }
+.solve-pair .sw {
+  height: 54px; border-radius: 10px; border: 1px solid var(--border);
+  display: flex; align-items: flex-end; padding: 5px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem;
+}
+.solve-pair .sw * { color: inherit; }   /* 同 .canvas：擋 materialize-dark 的裸 span 規則 */
+.solve-pair figcaption { font-size: .72rem; color: var(--muted); margin-top: 4px; }
+
+.solve-recipe { display: flex; flex-direction: column; gap: 6px; }
+.solve-step {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font-size: .8rem;
+}
+.solve-step .dot { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); flex: none; }
+.solve-step .hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.solve-step .pct { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+.solve-apply { margin-top: 12px; }

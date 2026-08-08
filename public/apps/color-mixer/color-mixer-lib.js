@@ -102,10 +102,17 @@
  *   FOLDER · MODELS · DEFAULT_MODEL · MAX_LAYERS
  *   compose(stack, model) → { hex, r, g, b, steps:[hex…] }   逐層合成（純函式）
  *   over(dst, src, alpha, model) → {r,g,b}                    單層合成（浮點，未取整）
+ *   solve({base, palette, target, model, maxLayers})          **反解／拆色**
+ *       → { layers, hex, dE, band, reachable, exact, … } | null
+ *       給目標色，回「用這組顏料怎麼疊最接近」。四個模型的疊層都是「某空間裡的
+ *       凸組合」，故這是凸問題——有唯一最佳解，而且**到不了時能證明到不了**。
+ *       ⚠️ `reachable` 為 false 時 `dE` 就是**做不到的下限**，不是暫時沒調好。
+ *   PALETTES（rgb／cmy／cmyk）· PALETTE_IDS · EXACT_CONVEX
  *   normalizeStack(raw) → Stack                               補預設值、夾範圍（不改輸入）
- *   encodeState(state) → 'm=…&b=…&o=…&l=…'                    網址列＝存檔（無前導 ?）
- *       state = { model, substrate, observed, stack }。`observed` 是**目視色**——
- *       使用者看到的顏色，不參與合成，故是 state 的同層欄位而不是 stack 的一部分。
+ *   encodeState(state) → 'm=…&b=…&o=…&t=…&p=…&l=…'            網址列＝存檔（無前導 ?）
+ *       state = { model, substrate, observed, solveTarget, solvePalette, solveCustom, stack }。
+ *       `observed` 是**目視色**——使用者看到的顏色，不參與合成，故是 state 的同層欄位
+ *       而不是 stack 的一部分。`solve*` 三個是反解的參數，同理不進 stack。
  *   decodeState(qs) → state | null                            壞字串回 null，不丟例外
  *   mergeNearest(lists, n) → [{ brand, code, name, hex, deltaE, band, … }]
  *   substrateOf(code, substrates) → Substrate | null
@@ -180,11 +187,35 @@
     return 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055);
   }
 
+  /**
+   * ---- 四個模型的單一定義：每個模型 ＝ 一組「進出某個空間」的座標轉換 ----
+   *
+   * 四個模型的差別**只在於「在哪個空間裡做線性插值」**：
+   *
+   *   | 模型  | 空間            | 疊一層 = 在該空間裡走 alpha 的比例 |
+   *   |-------|-----------------|------------------------------------|
+   *   | srgb  | sRGB 位元組     | ＝瀏覽器的 rgba() / globalAlpha    |
+   *   | oklab | OKLab           | 感知均勻的漸層                     |
+   *   | glaze | log 反射率      | Beer-Lambert 光學密度              |
+   *   | km    | K/S             | 單常數 Kubelka-Munk                |
+   *
+   * 所以 `over()` 只寫一次、由 `fwd/inv` 導出，**模型本身沒有第二份實作**（v1.16）。
+   * 反解 `solve()` 吃的也是同一張表——否則求解器會是模型的第二份實作，
+   * 而那正是「畫面說一套、拆色說另一套」的來源。
+   *
+   * ⚠️ 這是 2026-08-08 由四支獨立的 `overXxx()` 收斂而來。**收斂前先量過**：
+   *    `pow(Rd,1−a)·pow(Rs,a)` 與 `exp((1−a)·logRd + a·logRs)` 數學上相同、
+   *    浮點上不同。800,000 組單層合成實測——**取整後的 hex 零組不同**，
+   *    未取整最大差 4e-11（要翻轉一個位階需要 0.5）。
+   */
+  var SPACE = {};
+
   // ---- 模型一：sRGB 直接插值（＝瀏覽器 rgba() / globalAlpha） -------------
 
-  function overSrgb(d, s, a) {
-    return { r: s.r * a + d.r * (1 - a), g: s.g * a + d.g * (1 - a), b: s.b * a + d.b * (1 - a) };
-  }
+  SPACE.srgb = {
+    fwd: function (c) { return [c.r, c.g, c.b]; },
+    inv: function (v) { return { r: v[0], g: v[1], b: v[2] }; }
+  };
 
   // ---- 模型二：OKLab 插值（Björn Ottosson 2020） -------------------------
 
@@ -206,12 +237,13 @@
             -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
             -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
   }
-  function overOklab(d, s, a) {
-    var A = linToOklab(toLinear(d.r), toLinear(d.g), toLinear(d.b));
-    var B = linToOklab(toLinear(s.r), toLinear(s.g), toLinear(s.b));
-    var m = oklabToLin(A[0] + (B[0] - A[0]) * a, A[1] + (B[1] - A[1]) * a, A[2] + (B[2] - A[2]) * a);
-    return { r: toSrgb(m[0]), g: toSrgb(m[1]), b: toSrgb(m[2]) };
-  }
+  SPACE.oklab = {
+    fwd: function (c) { return linToOklab(toLinear(c.r), toLinear(c.g), toLinear(c.b)); },
+    inv: function (v) {
+      var m = oklabToLin(v[0], v[1], v[2]);
+      return { r: toSrgb(m[0]), g: toSrgb(m[1]), b: toSrgb(m[2]) };
+    }
+  };
 
   // ---- 兩個減色模型共用的下限 ---------------------------------------------
 
@@ -236,15 +268,14 @@
    * R 同樣要夾下限：R=0 在對數空間是 −∞。用與 km 相同的 R_MIN，
    * 兩個減色模型才是同一個前提下的比較。
    */
-  function overGlaze(d, s, a) {
-    var out = {};
-    ['r', 'g', 'b'].forEach(function (k) {
-      var Rd = Math.max(toLinear(d[k]), R_MIN);
-      var Rs = Math.max(toLinear(s[k]), R_MIN);
-      out[k] = toSrgb(Math.pow(Rd, 1 - a) * Math.pow(Rs, a));
-    });
-    return out;
-  }
+  SPACE.glaze = {
+    fwd: function (c) {
+      return ['r', 'g', 'b'].map(function (k) { return Math.log(Math.max(toLinear(c[k]), R_MIN)); });
+    },
+    inv: function (v) {
+      return { r: toSrgb(Math.exp(v[0])), g: toSrgb(Math.exp(v[1])), b: toSrgb(Math.exp(v[2])) };
+    }
+  };
 
   // ---- 模型四：單常數 Kubelka-Munk（調色盤混合，減色近似） ----------------
 
@@ -258,23 +289,25 @@
   function ks(R) { R = clamp(R, R_MIN, 1); return (1 - R) * (1 - R) / (2 * R); }
   function unks(x) { x = Math.max(x, 0); return 1 + x - Math.sqrt(x * x + 2 * x); }
 
-  function overKm(d, s, a) {
-    var out = {};
-    ['r', 'g', 'b'].forEach(function (k) {
-      var mixed = ks(toLinear(d[k])) * (1 - a) + ks(toLinear(s[k])) * a;
-      out[k] = toSrgb(unks(mixed));
-    });
-    return out;
-  }
+  SPACE.km = {
+    fwd: function (c) {
+      return ['r', 'g', 'b'].map(function (k) { return ks(toLinear(c[k])); });
+    },
+    inv: function (v) {
+      return { r: toSrgb(unks(v[0])), g: toSrgb(unks(v[1])), b: toSrgb(unks(v[2])) };
+    }
+  };
 
   // ---- 合成 -------------------------------------------------------------
 
+  function spaceOf(model) { return SPACE[model] || SPACE[DEFAULT_MODEL]; }
+
   function over(dst, src, alpha, model) {
-    var a = clamp01(alpha);
-    if (model === 'srgb') return overSrgb(dst, src, a);
-    if (model === 'oklab') return overOklab(dst, src, a);
-    if (model === 'km') return overKm(dst, src, a);
-    return overGlaze(dst, src, a);
+    var a = clamp01(alpha), S = spaceOf(model);
+    var d = S.fwd(dst), s = S.fwd(src);
+    return S.inv([d[0] + (s[0] - d[0]) * a,
+                  d[1] + (s[1] - d[1]) * a,
+                  d[2] + (s[2] - d[2]) * a]);
   }
 
   /**
@@ -298,6 +331,264 @@
       g: Math.round(clamp(cur.g, 0, 255)),
       b: Math.round(clamp(cur.b, 0, 255)),
       steps: steps
+    };
+  }
+
+  // ---- 反解（拆色）：給目標色，回「怎麼疊才最接近」-------------------------
+
+  /**
+   * 內建調色盤。**預設是 `rgb`**——不是因為減色情境下三原色顏料物理上正確
+   * （疊起來只會發濁），而是因為它是**三根滑桿、心裡有數**；而且實測在預設模型
+   * 下它剛好也最準（DESIGN §3.6 的實測表）。`cmy` 留著是為了讓「少一個 K」
+   * 這件事**看得見**，不是為了推薦它。
+   */
+  var PALETTES = {
+    rgb: ['#ff0000', '#00ff00', '#0000ff'],
+    cmy: ['#00ffff', '#ff00ff', '#ffff00'],
+    cmyk: ['#00ffff', '#ff00ff', '#ffff00', '#000000']
+  };
+  /**
+   * `layers` ＝ **畫布上現有的顏料層**當基底。它回答的是最實用的那個問題——
+   * 「我手上就這幾支筆，濃度該調多少」——而且是**校準值唯一真正進得到反解的路徑**：
+   * 層帶著 `src`（brand＋code），控制器據此把型錄色換成該基材上的實測色。
+   * ⚠️ 它的內容由控制器決定（lib 不碰 DOM 也不知道畫布狀態），故只出現在
+   *    PALETTE_IDS，**不在 PALETTES**。
+   */
+  var PALETTE_IDS = ['rgb', 'cmy', 'cmyk', 'layers', 'custom'];
+
+  /**
+   * 「疊層＝凸組合」**精確成立**的模型。這是**量出來的、不是推導出來的**：
+   * 各 4,000 組隨機堆疊比對 compose 與凸組合，這三個最大 ΔE00 = 0.0000，
+   * 而 `oklab` 是 1.46（反向 3.06）——因為它的逐層結果會被夾回 sRGB 色域。
+   * ⚠️ 日後新增模型時，**要先量再決定它進不進這張表**，不要照著「看起來像線性插值」放進來。
+   */
+  var EXACT_CONVEX = ['srgb', 'glaze', 'km'];
+
+  /**
+   * 凸權重 → 逐層 alpha。
+   *
+   * 疊 n 層之後在該模型的空間裡 V = Σ w·V_i，其中
+   *   w_base = Π(1−a_i)、w_i = a_i·Π_{j>i}(1−a_j)，且 Σw = 1（見 solve 的註解）。
+   * 反過來：第 i 層**之前還剩下的空間** ＝ w_base + Σ_{k≤i} w_k，故 a_i = w_i / 它。
+   * 因為分母恆 ≥ 分子，結果天生落在 [0,1]，不必夾。
+   */
+  function weightsToAlphas(wBase, ws) {
+    var out = [], rem = wBase;
+    for (var i = 0; i < ws.length; i++) {
+      rem += ws[i];
+      out.push(rem > 1e-12 ? ws[i] / rem : 0);
+    }
+    return out;
+  }
+
+  /** 小型高斯消去（最多 3×3）。奇異回 null。 */
+  function solveLinear(A, b) {
+    var n = b.length, i, j, k, p, f;
+    var M = A.map(function (row, r) { return row.concat([b[r]]); });
+    for (k = 0; k < n; k++) {
+      p = k;
+      for (i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i;
+      if (Math.abs(M[p][k]) < 1e-14) return null;
+      var t = M[k]; M[k] = M[p]; M[p] = t;
+      for (i = 0; i < n; i++) {
+        if (i === k) continue;
+        f = M[i][k] / M[k][k];
+        for (j = k; j <= n; j++) M[i][j] -= f * M[k][j];
+      }
+    }
+    // 消去完成後 M 是對角的，第 r 列的對角元就是 `M[r][r]`；
+    // ⚠️ 在下面的 callback 裡 `row` **已經是** `M[r]`，所以對角元是 `row[r]`——
+    //    寫成 `row[r][r]` 等於 `M[r][r][r]`，在一個數字上取索引得 undefined → 整條 NaN。
+    //    而 NaN 通不過 `> -1e-9`、也通不過 `dist < best.dist`，於是求解器**只會回單一頂點**：
+    //    一個看起來很合理的顏色，所以錯誤答案長得像「這個調色盤就是拼不出來」，不像 bug。
+    //    （寫這支時就是這樣錯的，靠往返測試抓到。）
+    return M.map(function (row, r) { return row[n] / row[r]; });
+  }
+
+  /**
+   * 目標點到「頂點凸包」的最近點。頂點數少（≤ MAX_LAYERS+1），
+   * 故直接列舉所有子面（Carathéodory：三維只需 ≤4 個頂點），各解無約束最小平方、
+   * 取重心座標全非負者。回 { dist, w:[…] }。
+   */
+  function closestInHull(target, verts) {
+    var n = verts.length, best = null, mask, i, d;
+    for (mask = 1; mask < (1 << n); mask++) {
+      var idx = [];
+      for (i = 0; i < n; i++) if (mask & (1 << i)) idx.push(i);
+      if (idx.length > 4) continue;
+      var P = idx.map(function (ix) { return verts[ix]; }), k = P.length, lam;
+      if (k === 1) {
+        lam = [1];
+      } else {
+        var o = P[k - 1], m = k - 1, A = [], rhs = [];
+        for (d = 0; d < 3; d++) {
+          A.push(P.slice(0, m).map(function (q) { return q[d] - o[d]; }));
+          rhs.push(target[d] - o[d]);
+        }
+        var N = [], r = [];
+        for (i = 0; i < m; i++) {
+          N.push([]);
+          for (var j = 0; j < m; j++) {
+            var s = 0;
+            for (d = 0; d < 3; d++) s += A[d][i] * A[d][j];
+            N[i].push(s + (i === j ? 1e-12 : 0));
+          }
+          var t2 = 0;
+          for (d = 0; d < 3; d++) t2 += A[d][i] * rhs[d];
+          r.push(t2);
+        }
+        var x = solveLinear(N, r);
+        if (!x) continue;
+        var sum = 0;
+        for (i = 0; i < x.length; i++) sum += x[i];
+        lam = x.concat([1 - sum]);
+      }
+      var bad = false;
+      for (i = 0; i < lam.length; i++) if (!(lam[i] > -1e-9)) bad = true;  // NaN 也算 bad
+      if (bad) continue;
+      var p = [0, 1, 2].map(function (dd) {
+        var acc = 0;
+        for (var q = 0; q < P.length; q++) acc += lam[q] * P[q][dd];
+        return acc;
+      });
+      var dist = Math.sqrt((p[0] - target[0]) * (p[0] - target[0]) +
+                           (p[1] - target[1]) * (p[1] - target[1]) +
+                           (p[2] - target[2]) * (p[2] - target[2]));
+      if (!best || dist < best.dist) {
+        var full = [];
+        for (i = 0; i < n; i++) full.push(0);
+        idx.forEach(function (ix, q) { full[ix] = lam[q]; });
+        best = { dist: dist, w: full };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * 反解：給基材底色、一組可用顏料、一個目標色，回「怎麼疊最接近」。
+   *
+   * **為什麼解得動**——四個模型的逐層疊加都是「某個空間裡的**凸組合**」：
+   *
+   *     V_out = w_base·V_base + Σ w_i·V_i
+   *     w_base = Π(1−a_i)、w_i = a_i·Π_{j>i}(1−a_j)、Σw = 1、w ≥ 0
+   *
+   * 所以「這個調色盤調得出哪些顏色」＝ 這些點在該空間裡的**凸包**；反解就是
+   * 「求目標到凸包的最近點」——凸問題，有唯一最佳解，**不必試誤，而且能證明到不了**。
+   *
+   * ⚠️ srgb／glaze／km **精確成立**（各 4,000 組隨機堆疊實測，最大 ΔE00 = 0.0000）；
+   *    **`oklab` 不成立**——它的逐層結果會被夾回 sRGB 色域，實測最大偏 1.46
+   *    （反向 3.06）。故 `exact` 對 oklab 回 false，`reachable` 也不該全信。
+   *
+   * ⚠️ **空間裡的最近點不等於 ΔE00 最近**。凸包回答的是「可不可達」（可達＝距離 0，
+   *    這一點三個模型是精確的）；不可達時的「最近」必須改用 ΔE00 再微調一次，
+   *    否則報出來的殘差不是真正的最小值——而殘差是這個功能唯一的產出。
+   *
+   * opts = { base, palette:[hex|{hex,src}], target, model, maxLayers }
+   * 回 { layers:[{hex,alpha,src}], hex, dE, band, reachable, exact, palette }
+   *    ——`layers` 可直接餵給 compose()。無解（調色盤空／目標壞）回 null。
+   * **純函式，不改輸入。**
+   */
+  function solve(opts) {
+    var o = opts || {};
+    if (!isHex(o.target)) return null;
+    var model = MODELS.indexOf(o.model) >= 0 ? o.model : DEFAULT_MODEL;
+    var base = isHex(o.base) ? hexNorm(o.base) : '#ffffff';
+    var cap = Math.min(typeof o.maxLayers === 'number' ? o.maxLayers : MAX_LAYERS, MAX_LAYERS);
+    var seen = {}, pal = [];
+    (Array.isArray(o.palette) ? o.palette : []).forEach(function (p) {
+      var hex = (p && typeof p === 'object') ? p.hex : p;
+      if (!isHex(hex)) return;
+      var h = hexNorm(hex);
+      if (seen[h] || pal.length >= cap) return;      // 同一個顏色收兩次只會讓解不唯一
+      seen[h] = 1;
+      pal.push({ hex: h, src: (p && p.src) ? p.src : null });
+    });
+    if (!pal.length) return null;
+
+    var target = hexNorm(o.target);
+    var S = spaceOf(model);
+    var verts = [S.fwd(hexToRgb(base))].concat(pal.map(function (p) { return S.fwd(hexToRgb(p.hex)); }));
+    var hull = closestInHull(S.fwd(hexToRgb(target)), verts);
+    if (!hull) return null;
+
+    // ⚠️ **微調前不剔除權重為 0 的顏料**——剔了就再也加不回來。
+    //    凸包給的是「該空間裡的最近點」，而該空間的歐氏距離**不是** ΔE00：km 尤其嚴重
+    //    （通道近 0 時 K/S 衝到 124，一個座標軸的尺度是另一個的百倍）。實測有四組
+    //    km 的解把某支顏料整個丟掉、殘差 2.4–11.3；整組留著讓微調自己決定要不要用，
+    //    同一批就全部收斂到 ΔE00 < 1。空配方留到最後再濾。
+    var alphas = weightsToAlphas(hull.w[0], hull.w.slice(1));
+
+    var tLab = rgbToLab(hexToRgb(target).r, hexToRgb(target).g, hexToRgb(target).b);
+    var pool = pal;
+    function score(a) {
+      var c = compose({ base: base, layers: pool.map(function (p, k) { return { hex: p.hex, alpha: a[k] }; }) }, model);
+      return deltaE(rgbToLab(c.r, c.g, c.b), tLab);
+    }
+    /**
+     * 由一個起點做模式搜尋，最小化**真正的 ΔE00**（不是空間裡的歐氏距離）。
+     *
+     * ⚠️ 除了單軸的 ±step，還要試**成對移動**（一支加、另一支減）。只走單軸會卡在
+     *    「兩支顏料互相取代」那條對角的谷裡——實測 km 有一組因此停在 ΔE00 2.37，
+     *    加了成對移動之後同一組收斂到 <1。這種卡住不會有任何徵兆：它回一個合理的
+     *    配方與一個看起來還行的殘差。
+     */
+    function descend(start) {
+      var a = start.slice(), d = score(a), step = 0.25, guard = 0, i2, j2, sgn, trial, d2;
+      while (step > 1e-4 && guard++ < 400) {
+        var moved = false;
+        for (i2 = 0; i2 < a.length; i2++) {
+          for (sgn = 0; sgn < 2; sgn++) {
+            trial = a.slice();
+            trial[i2] = clamp01(trial[i2] + (sgn ? -step : step));
+            d2 = score(trial);
+            if (d2 < d - 1e-9) { a = trial; d = d2; moved = true; }
+          }
+        }
+        for (i2 = 0; i2 < a.length; i2++) {
+          for (j2 = 0; j2 < a.length; j2++) {
+            if (i2 === j2) continue;
+            trial = a.slice();
+            trial[i2] = clamp01(trial[i2] + step);
+            trial[j2] = clamp01(trial[j2] - step);
+            d2 = score(trial);
+            if (d2 < d - 1e-9) { a = trial; d = d2; moved = true; }
+          }
+        }
+        if (!moved) step /= 2;
+      }
+      return { a: a, d: d };
+    }
+
+    // 多起點：凸包解通常最好，但它是在「空間裡最近」的意義下最好的，不是 ΔE00。
+    // 另外兩個起點便宜且各自擅長不同情形（全零＝底色本身；全滿＝最上層那支蓋住一切）。
+    var starts = [alphas, alphas.map(function () { return 0; }), alphas.map(function () { return 1; })];
+    var bestA = null, bestD = Infinity;
+    starts.forEach(function (s0) {
+      var r0 = descend(s0);
+      if (r0.d < bestD) { bestD = r0.d; bestA = r0.a; }
+    });
+
+    var layers = pool.map(function (p, k) {
+      return { hex: p.hex, alpha: bestA[k], src: p.src };
+    }).filter(function (l) { return l.alpha > 1e-4; });
+    var got = compose({ base: base, layers: layers }, model);
+    var dE = deltaE(rgbToLab(got.r, got.g, got.b), tLab);
+
+    /**
+     * 可達性＝**算出來的顏色與目標在 8 位元下同一個 hex**。
+     *
+     * ⚠️ 這裡刻意**不用**「凸包距離 < 某個容差」。試過，是錯的：目標 hex 本身已被
+     *    量化成 8 位元，所以「由這個調色盤合成、再取整成 hex」的顏色**通常不在凸包上**
+     *    （差約半個位階）。實測 300 組往返裡有 13–20% 被判成不可達——**假陰性**，
+     *    而「到不了」正是這個功能最重的一句話，寧可它嚴格對齊使用者看得到的東西。
+     * ⚠️ 也刻意不用「ΔE00 < 某個數」：那個數會是憑感覺挑的，而 ΔE00 在暗部與亮部
+     *    對同一個位階差給的值差很多。**同一個 hex** 沒有這兩個問題，而且驗得動。
+     */
+    var reachable = got.hex === target;
+    return {
+      layers: layers, hex: got.hex, dE: dE, band: deltaEBand(dE),
+      reachable: reachable, exact: EXACT_CONVEX.indexOf(model) >= 0,
+      hullDist: hull.dist, target: target, base: base, model: model
     };
   }
 
@@ -328,7 +619,7 @@
   // ---- 網址狀態（參數全寫在網址列＝複製連結就是存檔，同 circle-text） ------
 
   /**
-   * 格式：`m=<model>&b=<hex6>&s=<substrate>&l=<layer>_<layer>…`
+   * 格式：`m=<model>&b=<hex6>&s=<substrate>&o=<hex6>&t=<hex6>&p=<id>&pc=<hex6>_…&l=<layer>_…`
    *   layer ＝ `<hex6>.<alpha 0-100>` 或 `<hex6>.<alpha>.<brand>~<code>`
    * 刻意不用 JSON＋base64：網址要看得懂、手改得動、diff 得出來。
    */
@@ -343,6 +634,16 @@
     // 日後就分不出「這個 hex 是算的還是看的」。
     if (isHex(s.observed)) parts.push('o=' + hexNorm(s.observed).slice(1));
     if (s.substrate) parts.push('s=' + encodeURIComponent(s.substrate));
+    // 反解：目標色與基底調色盤。**只在有目標時才寫**，沒拆色的連結不該長出空參數。
+    if (isHex(s.solveTarget)) {
+      parts.push('t=' + hexNorm(s.solveTarget).slice(1));
+      var pid = PALETTE_IDS.indexOf(s.solvePalette) >= 0 ? s.solvePalette : 'rgb';
+      parts.push('p=' + pid);
+      if (pid === 'custom' && Array.isArray(s.solveCustom) && s.solveCustom.length) {
+        parts.push('pc=' + s.solveCustom.filter(isHex)
+          .slice(0, MAX_LAYERS).map(function (h) { return hexNorm(h).slice(1); }).join('_'));
+      }
+    }
     if (st.layers.length) {
       parts.push('l=' + st.layers.map(function (l) {
         var t = l.hex.slice(1) + '.' + Math.round(l.alpha * 100);
@@ -380,10 +681,17 @@
         layers.push({ hex: hexNorm(p[0]), alpha: clamp01(isNaN(a) ? 1 : a / 100), src: src });
       });
     }
+    var custom = [];
+    if (q.pc) {
+      q.pc.split('_').forEach(function (h) { if (isHex(h)) custom.push(hexNorm(h)); });
+    }
     return {
       model: MODELS.indexOf(q.m) >= 0 ? q.m : DEFAULT_MODEL,
       substrate: q.s || null,
       observed: isHex(q.o) ? hexNorm(q.o) : null,
+      solveTarget: isHex(q.t) ? hexNorm(q.t) : null,
+      solvePalette: PALETTE_IDS.indexOf(q.p) >= 0 ? q.p : 'rgb',
+      solveCustom: custom.slice(0, MAX_LAYERS),
       stack: normalizeStack({ base: q.b, layers: layers })
     };
   }
@@ -513,7 +821,8 @@
   global.ColorMixerLib = {
     FOLDER: FOLDER, MODELS: MODELS, DEFAULT_MODEL: DEFAULT_MODEL, MAX_LAYERS: MAX_LAYERS,
     ADDITIVE: ADDITIVE, SUBTRACTIVE: SUBTRACTIVE, MODEL_NOTE: MODEL_NOTE, R_MIN: R_MIN,
-    compose: compose, over: over, normalizeStack: normalizeStack,
+    PALETTES: PALETTES, PALETTE_IDS: PALETTE_IDS, EXACT_CONVEX: EXACT_CONVEX,
+    compose: compose, over: over, solve: solve, normalizeStack: normalizeStack,
     encodeState: encodeState, decodeState: decodeState,
     mergeNearest: mergeNearest,
     substrateOf: substrateOf, calibrationFor: calibrationFor, calibratedColors: calibratedColors,

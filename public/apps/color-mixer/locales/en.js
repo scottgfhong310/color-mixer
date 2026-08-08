@@ -104,6 +104,31 @@ I18n.register('en', {
 
   'btn.close': 'Close',
 
+  /* ---- reverse-solve ---- */
+  'solve.title': 'Reverse-solve: break a colour into a recipe',
+  'solve.ctx': 'base {base} · model {model}',
+  'solve.target': 'Target colour',
+  'solve.useDisc': 'Use the disc colour',
+  'solve.clear': 'Clear',
+  'solve.palette': 'Base pigments',
+  'solve.pal.rgb': 'RGB primaries',
+  'solve.pal.cmy': 'CMY',
+  'solve.pal.cmyk': 'CMYK',
+  'solve.pal.layers': 'Layers on the canvas',
+  'solve.pal.custom': 'Custom',
+  'solve.customPh': 'Space-separated, e.g. #ff0000 #00ff00 #0000ff',
+  'solve.empty': 'Enter a target colour, or press "Use the disc colour".',
+  'solve.noPalette': 'This palette is empty — enter at least one colour, or add some pigment layers first.',
+  'solve.usingCalib': '(pigments use this substrate\'s calibrated values)',
+  'solve.wanted': 'wanted',
+  'solve.got': 'closest these pigments get',
+  'solve.reachable': 'exact match',
+  'solve.unreachable': 'no exact match',
+  'solve.apply': 'Apply to canvas (replaces current layers)',
+  'solve.exactYes': 'Layering is an exact convex combination in this model, so whether it hits exactly is computed, not guessed.',
+  'solve.exactNo': '⚠️ OKLab clamps each layer back into the sRGB gamut, so its layering is not an exact convex combination — this solution is a very good approximation only.',
+  'solve.floor': 'ΔE00 {de} is <strong>the limit of these pigments on this base</strong>, not a tuning problem — no setting gets closer. Change or add pigments, or change the base.',
+
   /* ---- toasts ---- */
   'toast.copied': 'Copied',
   'toast.copiedValue': 'Copied: {v}',
@@ -112,5 +137,6 @@ I18n.register('en', {
   'toast.reset': 'Cleared',
   'toast.badHex': 'Not a valid colour: {v}',
   'toast.layerAdded': 'Added: {n}',
-  'toast.linkCopied': 'Share link copied'
+  'toast.linkCopied': 'Share link copied',
+  'toast.solveApplied': 'Recipe applied: {n} layers',
 }, 'English');

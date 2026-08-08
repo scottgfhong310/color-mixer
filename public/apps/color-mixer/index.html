@@ -130,6 +130,47 @@
         <p id="alpha-note" class="model-note alpha-note"></p>
       </section>
 
+      <!--
+        ===== 反解（拆色）=====
+        正向是「疊出來會變成什麼」，這一段是反過來問「要變成這個，該怎麼疊」。
+        ⚠️ 殘差**恆顯示**，而且到不了時要明講到不了（同 circle-text 的
+           「配平犧牲了哪個變數」）——反解最容易長成一支「它算得很好」的騙人工具：
+           默默給一個最接近的配方，使用者以為那就是答案。
+      -->
+      <section class="panel solve-panel">
+        <div class="panel-head">
+          <h2 data-i18n="solve.title">反解：把一個顏色拆成配方</h2>
+          <span id="solve-ctx" class="pool-note"></span>
+        </div>
+
+        <div class="solve-top">
+          <div class="field field-hex">
+            <label class="field-label" for="solve-target" data-i18n="solve.target">目標色</label>
+            <input id="solve-target" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="#171159" data-filter-clear />
+          </div>
+          <div class="solve-fills">
+            <button id="solve-use-disc" class="btn-flat tiny" type="button"
+                    data-i18n="solve.useDisc">用圓圈現在的色</button>
+            <button id="solve-clear" class="btn-flat tiny" type="button"
+                    data-i18n="solve.clear">清除</button>
+          </div>
+        </div>
+
+        <div class="solve-pal">
+          <span class="field-label" data-i18n="solve.palette">基底顏料</span>
+          <!-- 單選互斥、恆有一個 active、無勾號（§5.13），與模型 chips 同一種 -->
+          <div id="solve-palettes" class="group-chips" role="radiogroup"></div>
+        </div>
+        <div id="solve-custom-row" class="solve-custom" style="display:none">
+          <input id="solve-custom" type="text" spellcheck="false" autocomplete="off"
+                 data-i18n-placeholder="solve.customPh" placeholder="#ff0000 #00ff00 #0000ff" />
+        </div>
+
+        <div id="solve-out" class="solve-out"></div>
+        <p id="solve-note" class="model-note"></p>
+      </section>
+
       <!-- ===== 家族最接近色 ===== -->
       <section class="panel near-panel">
         <div class="panel-head">

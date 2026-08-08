@@ -174,8 +174,12 @@ check('B3', 'km 對純數位原色會失真（已知限制，不准悄悄被「�
 // =========================================================================
 
 check('C1', 'encode → decode 來回一致', () => {
+  // ⚠️ 這條每次加新的網址參數都要跟著擴充，**不是放寬**。
+  //    2026-08-08 反解上線時它紅過一次——decode 多回三個欄位而這裡沒有；
+  //    當時的誘惑是只比對舊欄位讓它變綠，那會讓「新參數存不存得進網址」從此沒有人驗。
   const st = {
-    model: 'glaze', substrate: 'xuan-natural',
+    model: 'glaze', substrate: 'xuan-natural', observed: '#171159',
+    solveTarget: '#22175e', solvePalette: 'custom', solveCustom: ['#ff0000', '#0000ff'],
     stack: { base: '#f0e6d2', layers: [
       { hex: '#08093d', alpha: 0.6, src: { brand: 'copic', code: 'B39' } },
       { hex: '#e8c33a', alpha: 0.35, src: null }] }
@@ -185,9 +189,177 @@ check('C1', 'encode → decode 來回一致', () => {
   if (JSON.stringify(back) !== JSON.stringify({
     model: st.model, substrate: st.substrate,
     observed: st.observed || null,          // 目視色也走網址（2026-08-08 加）
+    solveTarget: st.solveTarget, solvePalette: st.solvePalette, solveCustom: st.solveCustom,
     stack: L.normalizeStack(st.stack)
   })) throw new Error('來回不一致：' + JSON.stringify(back));
+  // 沒有反解時不該長出空參數——分享連結會被無意義的 t=&p= 撐大
+  const bare = L.encodeState({ model: 'glaze', stack: { base: '#ffffff' } });
+  if (/[?&]?t=|[?&]p=/.test(bare)) throw new Error('沒設目標卻寫了反解參數：' + bare);
   return { ok: true, detail: '?' + L.encodeState(st) };
+});
+
+// ---- G：反解（拆色）----------------------------------------------------
+//
+// 反解整支的地基是一句數學宣稱：「疊層＝某空間裡的凸組合」。**那是量出來的、
+// 不是推導出來的**，所以要一直量下去——地基垮了，solve 不會報錯，只會安靜地
+// 給出很有說服力的錯配方。
+
+check('G1', '疊層＝凸組合（反解的地基），且 oklab 誠實地不在表裡', () => {
+  let seed = 4242;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const rh = () => '#' + [0, 0, 0].map(() => Math.floor(rnd() * 256).toString(16).padStart(2, '0')).join('');
+  const out = {};
+  L.MODELS.forEach((m) => {
+    let worst = 0;
+    for (let i = 0; i < 500; i++) {
+      const base = rh();
+      const layers = Array.from({ length: 1 + Math.floor(rnd() * 3) }, () => ({ hex: rh(), alpha: rnd() }));
+      // 凸權重：w_base = Π(1−a)、w_i = a_i·Π_{j>i}(1−a_j)
+      let wb = 1; const ws = [];
+      layers.forEach((ly) => { for (let k = 0; k < ws.length; k++) ws[k] *= (1 - ly.alpha); wb *= (1 - ly.alpha); ws.push(ly.alpha); });
+      const sum = wb + ws.reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - 1) > 1e-9) throw new Error(`權重不加總為 1：${sum}`);
+      // 凸組合本身用 solve 的往返代替（SPACE 是 lib 內部的，不對外）：
+      // 由這組顏料合成出來的色，必須解得回來。
+      const tgt = L.compose({ base, layers }, m).hex;
+      const r = L.solve({ base, palette: layers.map((l) => l.hex), target: tgt, model: m });
+      if (!r) throw new Error('solve 回 null');
+      if (r.dE > worst) worst = r.dE;
+    }
+    out[m] = worst;
+  });
+  const exactWorst = Math.max(...L.EXACT_CONVEX.map((m) => out[m]));
+  if (exactWorst > 1.0) throw new Error(`宣稱精確的模型往返殘差 ${exactWorst.toFixed(3)} 太大`);
+  // ⚠️ 反向那半：oklab **必須不在** EXACT_CONVEX 裡。它會被夾回 sRGB 色域，
+  //    「看起來像線性插值」就順手加進去，會讓畫面對使用者宣稱一件不成立的事。
+  if (L.EXACT_CONVEX.indexOf('oklab') >= 0)
+    throw new Error('oklab 被列為精確凸組合——它會被夾回 sRGB 色域，不是');
+  return { ok: true, detail: L.MODELS.map((m) => `${m} 往返最大 ΔE00=${out[m].toFixed(3)}`).join('  ') };
+});
+
+check('G2', '到不了要說到不了，而且殘差是下限不是「還沒調好」', () => {
+  const bad = [];
+  L.MODELS.forEach((m) => {
+    // 單一紅色顏料疊在白紙上，永遠到不了綠
+    const r = L.solve({ base: '#ffffff', palette: ['#ff0000'], target: '#00ff00', model: m });
+    if (!r) return bad.push(`${m}: null`);
+    if (r.reachable) bad.push(`${m}: 宣稱調得出來（ΔE00=${r.dE.toFixed(1)}）`);
+    if (!(r.dE > 20)) bad.push(`${m}: 殘差 ${r.dE.toFixed(1)} 太小，不像到不了`);
+    // 而且「到得了」那一半也要成立，否則這條可能是恆為 false 的空轉
+    const easy = L.solve({ base: '#ffffff', palette: ['#000000'], target: '#ffffff', model: m });
+    if (!easy || !easy.reachable) bad.push(`${m}: 連目標＝底色都說到不了`);
+  });
+  if (bad.length) throw new Error(bad.join('；'));
+  return { ok: true, detail: '四模型：紅→綠 unreachable ✔　目標＝底色 reachable ✔' };
+});
+
+check('G3', 'solve 回的 layers 餵回 compose 必須得到同一個 hex', () => {
+  // 「畫面說一套、套用到畫布之後是另一套」正是本 app 檔頭那條結構性紀律要防的事。
+  let seed = 77, bad = 0, n = 0;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const rh = () => '#' + [0, 0, 0].map(() => Math.floor(rnd() * 256).toString(16).padStart(2, '0')).join('');
+  L.MODELS.forEach((m) => {
+    Object.keys(L.PALETTES).forEach((p) => {
+      for (let i = 0; i < 40; i++) {
+        const r = L.solve({ base: rh(), palette: L.PALETTES[p], target: rh(), model: m });
+        n++;
+        if (!r || L.compose({ base: r.base, layers: r.layers }, m).hex !== r.hex) bad++;
+      }
+    });
+  });
+  if (bad) throw new Error(`${bad}/${n} 組不自洽`);
+  return { ok: true, detail: `${n} 組（4 模型 × 3 內建調色盤）solve→compose 自洽` };
+});
+
+check('G4', '反解是純函式，且壞輸入回 null 不丟例外', () => {
+  const pal = ['#ff0000', '#00ff00', '#0000ff'];
+  const opts = { base: '#ffffff', palette: pal, target: '#171159', model: 'glaze' };
+  const snap = JSON.stringify(opts);
+  L.solve(opts);
+  if (JSON.stringify(opts) !== snap) throw new Error('solve 改動了輸入');
+  const nulls = [null, { target: 'zzz' }, { target: '#123456', palette: [] },
+    { target: '#123456', palette: ['nope'] }];
+  for (const o of nulls) {
+    let r; try { r = L.solve(o); } catch (e) { throw new Error('丟了例外：' + e.message); }
+    if (r !== null) throw new Error('壞輸入沒回 null：' + JSON.stringify(o));
+  }
+  return { ok: true, detail: '不改輸入 ✔　4 種壞輸入回 null ✔' };
+});
+
+check('G5', '反解面板：markup 上的每個 id 都有人接，且三語 key 齊全', () => {
+  const html = read('index.html'), js = read('color-mixer.js');
+  const ids = ['solve-target', 'solve-use-disc', 'solve-clear', 'solve-palettes',
+    'solve-custom', 'solve-out', 'solve-note', 'solve-ctx', 'solve-custom-row'];
+  const orphan = ids.filter((id) => !html.includes(`id="${id}"`) || !js.includes(`#${id}`));
+  if (orphan.length) throw new Error('markup 與 handler 對不上：' + orphan.join(', '));
+  // #solve-apply 是動態產生的，所以查的是委派綁定而不是靜態 markup
+  if (!js.includes("'#solve-apply'")) throw new Error('#solve-apply 沒有委派 handler');
+  // 三語：內建調色盤有幾個，文案就要有幾組（同 F4 的寫法）
+  const need = L.PALETTE_IDS.map((p) => 'solve.pal.' + p)
+    .concat(['solve.title', 'solve.target', 'solve.reachable', 'solve.unreachable',
+      'solve.floor', 'solve.exactYes', 'solve.exactNo', 'solve.apply', 'toast.solveApplied']);
+  const miss = [];
+  ['zh-Hant', 'en', 'ja'].forEach((lg) => {
+    const src = read(`locales/${lg}.js`);
+    need.forEach((k) => { if (!src.includes(`'${k}'`)) miss.push(`${lg}:${k}`); });
+  });
+  if (miss.length) throw new Error('缺三語文案：' + miss.join(', '));
+  return { ok: true, detail: `${ids.length} 個 id 有人接　${need.length} key × 3 語 = ${need.length * 3} 個都在` };
+});
+
+check('G6', '反解不弄丟筆的身分，且校準值真的進得到反解', () => {
+  // ① lib：palette 收 {hex, src} 時，src 要一路帶到 layers——否則「套用到畫布」
+  //    之後那幾層就變成自調色，明細卡與校準徽章全部消失，而畫面顏色一模一樣。
+  const pal = [{ hex: '#255da7', src: { brand: 'copic-color', code: 'B39' } },
+    { hex: '#000000', src: { brand: 'copic-color', code: '110' } }];
+  const r = L.solve({ base: '#ffffff', palette: pal, target: '#171159', model: 'glaze' });
+  if (!r || !r.layers.length) throw new Error('solve 沒回配方');
+  const lost = r.layers.filter((l) => !l.src || !l.src.code);
+  if (lost.length) throw new Error(`${lost.length} 層弄丟了 src`);
+  // 套用那一步（normalizeStack）也不能把 src 洗掉
+  const applied = L.normalizeStack({ base: '#ffffff', layers: r.layers });
+  if (applied.layers.some((l) => !l.src)) throw new Error('normalizeStack 洗掉了 src');
+
+  // ② 控制器：`layers` 調色盤是校準值進反解的唯一路徑，所以它必須真的走
+  //    calibratedColors()，而不是自己再比對一次（v1.16）。
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const fn = js.slice(js.indexOf('function solvePalette'), js.indexOf('function renderSolve'));
+  if (!fn) throw new Error('找不到 solvePalette()');
+  if (!/'layers'/.test(fn)) throw new Error('solvePalette 沒有處理 layers 調色盤');
+  // ⚠️ 比對的是**完整呼叫** `Lib.calibratedColors(`，不是子字串 `calibratedColors`。
+  //    第一版寫成後者，反向驗證時把它改成 `Lib.NOPE_calibratedColors(` **照樣通過**
+  //    ——一個抓不到「函式被換掉」的檢查，等於只在檢查註解裡有沒有出現這個字。
+  if (!fn.includes('Lib.calibratedColors('))
+    throw new Error('solvePalette 沒有呼叫 Lib.calibratedColors()——校準值進不到反解');
+  if (!/state\.useCalib/.test(fn) || !/state\.substrate/.test(fn))
+    throw new Error('沒有同時看 useCalib 與 substrate——會在沒選基材時拿錯的校準值');
+  if (L.PALETTE_IDS.indexOf('layers') < 0) throw new Error('PALETTE_IDS 少了 layers');
+  return { ok: true, detail: 'src 帶到底 ✔　layers 調色盤走 calibratedColors ✔' };
+});
+
+check('G7', '被多個面板讀到的 state 欄位，改它的 handler 必須整頁重繪', () => {
+  // ⚠️ 這條是實際踩到才寫的：`#use-calib` 原本只呼叫 renderNear()——當年 useCalib
+  //    只有最接近色在讀，完全正確。反解的 `layers` 調色盤上線後它多了第二個讀者，
+  //    症狀是**勾選框勾了沒反應**：不報錯、不當機，反解安靜地繼續用型錄色。
+  //    「記得在每個出口補呼叫」是會過期的紀律，所以把它變成一條檢查。
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const shared = ['useCalib', 'substrate', 'model', 'solveTarget', 'solvePalette', 'solveCustom'];
+  const bad = [];
+  shared.forEach((f) => {
+    // ⚠️ `=(?!=)`：不加否定前瞻的話，`state.model === m` 這種**比較**也會被當成賦值
+    //    ——第一版就是這樣，五處假陽性全在 render 函式裡（它們只是在讀）。
+    const re = new RegExp(`state\\.${f}\\s*=(?!=)`, 'g');
+    let m;
+    while ((m = re.exec(js))) {
+      // 從賦值處往後看這個 handler 剩下的部分（到下一個 `});` 收尾為止）
+      const rest = js.slice(m.index, m.index + 700);
+      const body = rest.slice(0, rest.indexOf('\n    });') + 1 || rest.length);
+      if (!/renderAll\(\)/.test(body) && !/function readUrl/.test(js.slice(Math.max(0, m.index - 400), m.index)))
+        bad.push(`state.${f} @${js.slice(0, m.index).split('\n').length} 行`);
+    }
+  });
+  if (bad.length) throw new Error('改了共享欄位卻沒有整頁重繪：' + bad.join('、'));
+  return { ok: true, detail: `${shared.length} 個共享欄位的每個賦值點都接 renderAll()` };
 });
 
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {
@@ -618,7 +790,21 @@ if (SELFTEST) {
     ['A2 端點', () => { const o = L.compose; L.compose = (s) => ({ hex: '#123456' }); return () => { L.compose = o; }; }],
     ['A4 減色給綠', () => { const o = L.SUBTRACTIVE; L.SUBTRACTIVE = ['srgb']; return () => { L.SUBTRACTIVE = o; }; }],
     ['C2 壞輸入回 null', () => { const o = L.decodeState; L.decodeState = () => ({}); return () => { L.decodeState = o; }; }],
-    ['D1 合併排序', () => { const o = L.mergeNearest; L.mergeNearest = (l) => []; return () => { L.mergeNearest = o; }; }]
+    ['D1 合併排序', () => { const o = L.mergeNearest; L.mergeNearest = (l) => []; return () => { L.mergeNearest = o; }; }],
+    // 反解最危險的失效方式**不是丟例外，是安靜地退化成「只回一個頂點」**
+    // ——那是個看起來很合理的顏色，所以錯誤答案長得像「這個調色盤就是拼不出來」。
+    // （寫這支 lib 時真的踩到：高斯消去的回代多取了一次索引 → 全 NaN → 只回頂點。）
+    ['G 反解退化成單一頂點', () => {
+      const o = L.solve;
+      L.solve = (op) => ({ layers: [{ hex: (op.palette || ['#000000'])[0], alpha: 1 }],
+        hex: '#000000', dE: 99, band: 'far', reachable: false, exact: true,
+        target: op.target, base: op.base, model: op.model });
+      return () => { L.solve = o; };
+    }],
+    ['G oklab 被誤列為精確', () => {
+      const o = L.EXACT_CONVEX; L.EXACT_CONVEX = ['srgb', 'glaze', 'km', 'oklab'];
+      return () => { L.EXACT_CONVEX = o; };
+    }]
   ];
   let caught = 0;
   cases.forEach(([name, brk]) => {
@@ -629,6 +815,13 @@ if (SELFTEST) {
       if (name.startsWith('A4')) { red = L.SUBTRACTIVE.indexOf('glaze') < 0; }
       if (name.startsWith('C2')) { red = L.decodeState('garbage') !== null; }
       if (name.startsWith('D1')) { red = L.mergeNearest([{ brand: 'x', items: [{ deltaE: 1 }] }], 3).length !== 1; }
+      if (name === 'G 反解退化成單一頂點') {
+        // G1 的往返：由調色盤自己合成的目標必須解得回來（退化版做不到）
+        const pal = ['#ff0000', '#00ff00', '#0000ff'];
+        const tgt = L.compose({ base: '#ffffff', layers: [{ hex: pal[0], alpha: 1 }, { hex: pal[2], alpha: 0.5 }] }, 'glaze').hex;
+        red = L.solve({ base: '#ffffff', palette: pal, target: tgt, model: 'glaze' }).dE > 1.0;
+      }
+      if (name === 'G oklab 被誤列為精確') { red = L.EXACT_CONVEX.indexOf('oklab') >= 0; }
     } catch (e) { red = true; }
     restore();
     if (red) caught++;

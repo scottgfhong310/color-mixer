@@ -107,6 +107,31 @@ I18n.register('zh-Hant', {
 
   'btn.close': '關閉',
 
+  /* ---- 反解（拆色） ---- */
+  'solve.title': '反解：把一個顏色拆成配方',
+  'solve.ctx': '底色 {base}　模型 {model}',
+  'solve.target': '目標色',
+  'solve.useDisc': '用圓圈現在的色',
+  'solve.clear': '清除',
+  'solve.palette': '基底顏料',
+  'solve.pal.rgb': 'RGB 三原色',
+  'solve.pal.cmy': 'CMY',
+  'solve.pal.cmyk': 'CMYK',
+  'solve.pal.layers': '畫布上的顏料層',
+  'solve.pal.custom': '自訂',
+  'solve.customPh': '用空白隔開，例如 #ff0000 #00ff00 #0000ff',
+  'solve.empty': '填一個目標色，或按「用圓圈現在的色」。',
+  'solve.noPalette': '這個調色盤是空的——填至少一個顏色，或先在畫布上加幾層顏料。',
+  'solve.usingCalib': '（顏料用該基材的校準值）',
+  'solve.wanted': '想要的',
+  'solve.got': '這組顏料最接近的',
+  'solve.reachable': '剛好命中',
+  'solve.unreachable': '無法完全命中',
+  'solve.apply': '套用到畫布（取代現有層）',
+  'solve.exactYes': '這個模型的疊層是精確的凸組合，所以「命不命中」是算出來的，不是試出來的。',
+  'solve.exactNo': '⚠️ OKLab 的逐層結果會被夾回 sRGB 色域，所以它的疊層不是精確的凸組合——這裡的解只是很好的近似。',
+  'solve.floor': 'ΔE00 {de} 是<strong>這組顏料在這個底色上的極限</strong>，不是還沒調好——再調也不會更近。要更接近就得換／加顏料，或換底色。',
+
   /* ---- toast（§6 正統表逐字） ---- */
   'toast.copied': '已複製',
   'toast.copiedValue': '已複製：{v}',
@@ -115,5 +140,6 @@ I18n.register('zh-Hant', {
   'toast.reset': '已清除',
   'toast.badHex': '不是有效的顏色：{v}',
   'toast.layerAdded': '已加入：{n}',
-  'toast.linkCopied': '已複製分享連結'
+  'toast.linkCopied': '已複製分享連結',
+  'toast.solveApplied': '已套用配方：{n} 層',
 }, '繁體中文');

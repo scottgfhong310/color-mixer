@@ -103,7 +103,12 @@
     observed: null,          // 目視色：使用者「看到的」顏色，不參與合成（見 renderCanvas）
     brands: BRANDS.map(function (b) { return b.id; }),   // 篩選 chips：預設全開
     useCalib: false,
-    pickBrand: 'copic-color'
+    pickBrand: 'copic-color',
+    // 反解：目標色與基底調色盤。與 observed 同理**不進 stack**——那是「我想要什麼」，
+    // 不是「我疊了什麼」，混進去日後就分不出這個 hex 是配方還是願望。
+    solveTarget: null,
+    solvePalette: 'rgb',
+    solveCustom: []
   };
   var poolSize = {};        // 各品牌實際的比對池大小（由該品牌自己的 nearest 算出）
   var detailCtx = null;     // 明細 Modal 現在開的是哪一筆
@@ -143,7 +148,9 @@
 
   function pushUrl() {
     var qs = Lib.encodeState({ model: state.model, substrate: state.substrate,
-                               observed: state.observed, stack: state.stack });
+                               observed: state.observed, stack: state.stack,
+                               solveTarget: state.solveTarget, solvePalette: state.solvePalette,
+                               solveCustom: state.solveCustom });
     try { history.replaceState(null, '', '?' + qs); } catch (e) { /* file:// 下會丟，忽略 */ }
   }
   function readUrl() {
@@ -153,6 +160,9 @@
     state.substrate = s.substrate;
     state.observed = s.observed || null;
     state.stack = s.stack;
+    state.solveTarget = s.solveTarget || null;
+    state.solvePalette = s.solvePalette || 'rgb';
+    state.solveCustom = s.solveCustom || [];
     return true;
   }
 
@@ -354,10 +364,102 @@
 
   // ---- 全頁重繪 ---------------------------------------------------------
 
+  // ---- 渲染：反解（拆色） -----------------------------------------------
+
+  /**
+   * 目前選中的基底顏料。
+   *
+   * `layers` ＝ 畫布上現有的顏料層，而且**這是校準值進得到反解的唯一路徑**：
+   * 內建的 RGB／CMY(K) 是抽象原色、`custom` 是手填的 hex，兩者都沒有「哪支筆」
+   * 這個身分，也就無從校準。層有 `src`（brand＋code），所以勾了「以校準值比對」
+   * 又選了基材時，這裡把型錄色換成該紙上的實測色——反解算的才是**紙上的**配方。
+   * ⚠️ 換色走 `calibratedColors()`，不自己比對一次（同一條規則不要有第二份實作，v1.16）。
+   */
+  function solvePalette() {
+    if (state.solvePalette === 'custom') return state.solveCustom.slice();
+    if (state.solvePalette === 'layers') {
+      return state.stack.layers.map(function (l) {
+        if (!(state.useCalib && state.substrate && l.src)) return { hex: l.hex, src: l.src };
+        var swapped = Lib.calibratedColors([{ code: l.src.code, hex: l.hex }],
+                                           l.src.brand, state.substrate);
+        return { hex: (swapped[0] && swapped[0].hex) || l.hex, src: l.src };
+      });
+    }
+    return (Lib.PALETTES[state.solvePalette] || Lib.PALETTES.rgb).slice();
+  }
+
+  function renderSolve() {
+    var pid = state.solvePalette;
+    $('#solve-palettes').html(Lib.PALETTE_IDS.map(function (p) {
+      return '<button type="button" class="group-chip' + (pid === p ? ' active' : '')
+        + '" data-pal="' + p + '" role="radio" aria-checked="' + (pid === p) + '">'
+        + esc(t('solve.pal.' + p)) + '</button>';
+    }).join(''));
+    $('#solve-custom-row').toggle(pid === 'custom');
+    $('#solve-custom').val(state.solveCustom.join(' '));
+    $('#solve-target').val(state.solveTarget || '');
+    var ctx = t('solve.ctx', { base: state.stack.base, model: t('model.' + state.model) });
+    // 用了校準值就要講——否則畫面上兩種來源的顏色長得一模一樣（同 F8 那條的理由）
+    if (pid === 'layers' && state.useCalib && state.substrate) ctx += '　' + t('solve.usingCalib');
+    $('#solve-ctx').text(ctx);
+
+    var out = $('#solve-out');
+    if (!state.solveTarget) {
+      out.html('<p class="empty-hint">' + esc(t('solve.empty')) + '</p>');
+      $('#solve-note').text('');
+      return;
+    }
+    var pal = solvePalette();
+    if (!pal.length) {
+      out.html('<p class="empty-hint">' + esc(t('solve.noPalette')) + '</p>');
+      $('#solve-note').text('');
+      return;
+    }
+    var r = Lib.solve({ base: state.stack.base, palette: pal,
+                        target: state.solveTarget, model: state.model });
+    if (!r) { out.html('<p class="empty-hint">' + esc(t('solve.noPalette')) + '</p>'); return; }
+
+    function sw(hex, cap) {
+      var fg = Lib.pickTextColor(Lib.hexToRgb(hex));
+      return '<figure><div class="sw" style="background:' + hex + ';color:' + fg + '">'
+        + '<span>' + esc(hex) + '</span></div>'
+        + '<figcaption>' + esc(cap) + '</figcaption></figure>';
+    }
+    // ⚠️ 到不了時**不可以只給配方**——那正是「一支會說謊的工具」的長相（v1.17）。
+    //    verdict 一律在最上面，而且 ΔE00 恆顯示，可達與否都顯示。
+    var html = '<div class="solve-verdict">'
+      + '<span class="tag ' + (r.reachable ? 'ok' : 'no') + '">'
+      + esc(t(r.reachable ? 'solve.reachable' : 'solve.unreachable')) + '</span>'
+      + '<span class="de">ΔE00 = ' + r.dE.toFixed(2) + '　' + esc(t('band.' + r.band)) + '</span>'
+      + '</div>'
+      + '<div class="solve-pair">' + sw(r.target, t('solve.wanted')) + sw(r.hex, t('solve.got')) + '</div>';
+
+    if (r.layers.length) {
+      html += '<div class="solve-recipe">' + r.layers.map(function (l, i) {
+        return '<div class="solve-step">'
+          + '<span class="dot" style="background:' + l.hex + '"></span>'
+          + '<span class="idx">' + (i + 1) + '.</span>'
+          + '<span class="hex">' + esc(l.hex) + '</span>'
+          + '<span class="pct">' + Math.round(l.alpha * 100) + '%</span>'
+          + '</div>';
+      }).join('') + '</div>'
+      + '<button id="solve-apply" class="btn-flat solve-apply" type="button">'
+      + '<i class="material-icons left">playlist_add</i>' + esc(t('solve.apply')) + '</button>';
+    }
+    out.html(html);
+
+    // 兩句一定要講的話：① 這個模型的疊層是不是「精確的凸組合」（oklab 不是）；
+    // ② 到不了時，殘差是**這組顏料的下限**，不是還沒調好。
+    var note = t(r.exact ? 'solve.exactYes' : 'solve.exactNo');
+    if (!r.reachable) note += ' ' + t('solve.floor', { de: r.dE.toFixed(2) });
+    $('#solve-note').html(note);
+  }
+
   function renderAll() {
     renderCanvas();
     renderLayers();
     renderModels();
+    renderSolve();
     renderBrandChips();
     renderNear();
     pushUrl();
@@ -578,7 +680,11 @@
 
     $('#use-calib').on('change', function () {
       state.useCalib = this.checked;
-      renderNear();
+      // ⚠️ 這裡本來只呼叫 renderNear()——當時 useCalib 只影響最接近色，那是對的。
+      //    反解的 `layers` 調色盤上線後它多了第二個讀者，於是勾選框變成**勾了沒反應**：
+      //    畫面不報錯，只是反解安靜地繼續用型錄色。**「記得在每個出口補呼叫」
+      //    是會過期的紀律**（v1.17），所以一律 renderAll()——多算幾毫秒換掉一整類 bug。
+      renderAll();
     });
 
     // 基材
@@ -607,6 +713,50 @@
       state.substrate = null;      // 手動改底色＝不再宣稱是某個基材
       renderSubstrates();
       renderAll();
+    });
+
+    // 反解（拆色）
+    $('#solve-target').on('change', function () {
+      var v = String(this.value || '').trim();
+      if (!v) { state.solveTarget = null; renderAll(); return; }
+      if (!Lib.isHex(v)) {
+        toast(t('toast.badHex', { v: v }), 'red');
+        $('#solve-target').val(state.solveTarget || '');
+        return;
+      }
+      state.solveTarget = Lib.rgbToHex(Lib.hexToRgb(v));
+      renderAll();
+    });
+    // 「用圓圈現在的色」——刻意問 discColor() 而不是 result()：填了目視色時，
+    // 你想拆的是**你看到的那個**，不是模型算出來的那個（同 nearestLists 的理由）。
+    $('#solve-use-disc').on('click', function () {
+      state.solveTarget = discColor().hex;
+      renderAll();
+    });
+    $('#solve-clear').on('click', function () { state.solveTarget = null; renderAll(); });
+    $('#solve-palettes').on('click', '.group-chip', function () {
+      state.solvePalette = $(this).data('pal');
+      renderAll();
+    });
+    $('#solve-custom').on('change', function () {
+      var raw = String(this.value || '').split(/[\s,]+/).filter(Boolean);
+      var good = raw.filter(Lib.isHex), bad = raw.filter(function (h) { return !Lib.isHex(h); });
+      // 壞的那幾個要點名，不要靜默丟掉——靜默丟掉會讓「我明明填了五個色」變成無解的謎。
+      if (bad.length) toast(t('toast.badHex', { v: bad.join(' ') }), 'red');
+      state.solveCustom = good.slice(0, Lib.MAX_LAYERS).map(function (h) {
+        return Lib.rgbToHex(Lib.hexToRgb(h));
+      });
+      renderAll();
+    });
+    $('#solve-out').on('click', '#solve-apply', function () {
+      var r = Lib.solve({ base: state.stack.base, palette: solvePalette(),
+                          target: state.solveTarget, model: state.model });
+      if (!r || !r.layers.length) return;
+      // 套用＝**取代**目前的顏料層，不是追加：拆色的結果是一整份配方，
+      // 疊在既有層上面得到的不是它算出來的那個顏色。
+      state.stack = Lib.normalizeStack({ base: state.stack.base, layers: r.layers });
+      renderAll();
+      toast(t('toast.solveApplied', { n: r.layers.length }), 'green');
     });
 
     // 顏料層
