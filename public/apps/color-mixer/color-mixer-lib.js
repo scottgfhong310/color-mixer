@@ -103,7 +103,9 @@
  *   compose(stack, model) → { hex, r, g, b, steps:[hex…] }   逐層合成（純函式）
  *   over(dst, src, alpha, model) → {r,g,b}                    單層合成（浮點，未取整）
  *   normalizeStack(raw) → Stack                               補預設值、夾範圍（不改輸入）
- *   encodeState(state) → 'm=km&b=…&l=…'                       網址列＝存檔（無前導 ?）
+ *   encodeState(state) → 'm=…&b=…&o=…&l=…'                    網址列＝存檔（無前導 ?）
+ *       state = { model, substrate, observed, stack }。`observed` 是**目視色**——
+ *       使用者看到的顏色，不參與合成，故是 state 的同層欄位而不是 stack 的一部分。
  *   decodeState(qs) → state | null                            壞字串回 null，不丟例外
  *   mergeNearest(lists, n) → [{ brand, code, name, hex, deltaE, band, … }]
  *   substrateOf(code, substrates) → Substrate | null
@@ -336,6 +338,10 @@
     var parts = [];
     parts.push('m=' + (MODELS.indexOf(s.model) >= 0 ? s.model : DEFAULT_MODEL));
     parts.push('b=' + st.base.slice(1));
+    // 目視色：**使用者看到的**顏色，不是算出來的。它與 stack 無關（不參與合成），
+    // 所以是 state 的同層欄位而不是 stack 的一部分——把觀測值混進配方裡，
+    // 日後就分不出「這個 hex 是算的還是看的」。
+    if (isHex(s.observed)) parts.push('o=' + hexNorm(s.observed).slice(1));
     if (s.substrate) parts.push('s=' + encodeURIComponent(s.substrate));
     if (st.layers.length) {
       parts.push('l=' + st.layers.map(function (l) {
@@ -377,6 +383,7 @@
     return {
       model: MODELS.indexOf(q.m) >= 0 ? q.m : DEFAULT_MODEL,
       substrate: q.s || null,
+      observed: isHex(q.o) ? hexNorm(q.o) : null,
       stack: normalizeStack({ base: q.b, layers: layers })
     };
   }

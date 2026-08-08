@@ -183,7 +183,9 @@ check('C1', 'encode → decode 來回一致', () => {
   const back = L.decodeState(L.encodeState(st));
   if (!back) throw new Error('decodeState 回 null');
   if (JSON.stringify(back) !== JSON.stringify({
-    model: st.model, substrate: st.substrate, stack: L.normalizeStack(st.stack)
+    model: st.model, substrate: st.substrate,
+    observed: st.observed || null,          // 目視色也走網址（2026-08-08 加）
+    stack: L.normalizeStack(st.stack)
   })) throw new Error('來回不一致：' + JSON.stringify(back));
   return { ok: true, detail: '?' + L.encodeState(st) };
 });
@@ -415,10 +417,12 @@ check('F6', '畫布＝基材、圓內＝結果（兩個不同的顏色，不准�
   const cv = body.slice(body.indexOf("$('#canvas')"), body.indexOf("$('#mix-disc')"));
   const dc = body.slice(body.indexOf("$('#mix-disc')"));
   if (!/state\.stack\.base/.test(cv)) throw new Error('#canvas 沒有吃 state.stack.base（基材）');
-  if (/\br\.hex\b/.test(cv)) throw new Error('#canvas 吃到了結果色——外圈應該是紙');
-  if (!/\br\.hex\b/.test(dc)) throw new Error('#mix-disc 沒有吃結果色');
-  if (!/pickTextColor\(r\)/.test(dc)) throw new Error('讀數在圓內，字色對比要算在結果色上');
-  return { ok: true, detail: '#canvas ← state.stack.base ／ #mix-disc ← r.hex' };
+  if (/\bd\.hex\b|\br\.hex\b/.test(cv)) throw new Error('#canvas 吃到了圓的顏色——外圈應該是紙');
+  // ⚠️ 2026-08-08 加入目視色後，圓吃的是 discColor()（＝目視色 || 計算結果），不再直接是 r。
+  //    字色的對比基準必須跟著改成**圓的顏色**——算在 result 上會讓目視色是淺色時字看不見。
+  if (!/\bd\.hex\b/.test(dc)) throw new Error('#mix-disc 沒有吃 discColor() 的顏色');
+  if (!/pickTextColor\(d\)/.test(dc)) throw new Error('讀數在圓內，字色對比要算在**圓的顏色**上，不是 result');
+  return { ok: true, detail: '#canvas ← state.stack.base ／ #mix-disc ← discColor()' };
 });
 
 check('F7', '挑色走右側 sidenav，且挑完不關面板', () => {
@@ -443,6 +447,42 @@ check('F7', '挑色走右側 sidenav，且挑完不關面板', () => {
   if (!/addLayer\(/.test(body)) throw new Error('pick-grid handler 沒有 addLayer');
   if (/\.close\(\)/.test(body)) throw new Error('點色片後把面板關掉了——側欄的意義就沒了');
   return { ok: true, detail: 'sidenav(right) ＋ 挑完保持開啟' };
+});
+
+check('F8', '目視色：圓圈換內容時一定看得出來，且與計算值分得開', () => {
+  const html = read('index.html');
+  const js = read('color-mixer.js')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // ① markup：輸入框、徽章、比較行都在，且徽章在圓內
+  ['id="observed-hex"', 'id="disc-badge"', 'id="disc-compare"'].forEach((x) => {
+    if (!html.includes(x)) throw new Error('index.html 缺 ' + x);
+  });
+  const disc = html.slice(html.indexOf('id="mix-disc"'));
+  if (disc.indexOf('id="disc-badge"') < 0 || disc.indexOf('id="disc-badge"') > disc.indexOf('</div>\n          </div>'))
+    throw new Error('#disc-badge 不在 #mix-disc 之內——徽章要跟著圓走');
+
+  // ② **這條才是重點**：填了目視色而畫面沒有任何標示，就是默默換內容。
+  if (!/#disc-badge['"]\)\.toggle\(/.test(js))
+    throw new Error('控制器沒有依目視色切換 #disc-badge——畫面會默默換內容');
+
+  // ③ 目視色與計算值不可混為一談：圓吃 discColor()、比較行吃 result()
+  const fn = js.slice(js.indexOf('function renderCanvas'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  if (!/discColor\(\)/.test(body)) throw new Error('renderCanvas 沒有用 discColor()');
+  if (!/result\(\)/.test(body)) throw new Error('renderCanvas 沒有保留 result()——比較行就沒有計算值可印');
+
+  // ④ discColor 的回傳形狀必須含 .hex（renderCopyRow 直接讀它；只回 {r,g,b} 會印出 undefined）
+  const L2 = js.slice(js.indexOf('function discColor'));
+  if (!/hex:/.test(L2.slice(0, L2.indexOf('\n  }'))))
+    throw new Error('discColor 沒有回傳 .hex——複製鈕會顯示 undefined，而畫面其他地方看起來正常');
+
+  // ⑤ 網址要帶得走（否則「複製連結＝存檔」對目視色不成立）
+  const st = { model: 'glaze', substrate: null, observed: '#171159',
+               stack: { base: '#ffffff', layers: [] } };
+  const back = L.decodeState(L.encodeState(st));
+  if (!back || back.observed !== '#171159') throw new Error('observed 沒有進網址列來回');
+  return { ok: true, detail: '徽章／比較行／形狀／網址來回皆有' };
 });
 
 check('F9', '色的識別用品牌自己的鍵——CDA 同色碼跨系列是不同顏色', () => {

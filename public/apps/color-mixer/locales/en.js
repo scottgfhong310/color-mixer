@@ -8,6 +8,10 @@ I18n.register('en', {
   'canvas.aria': 'The field is the substrate (paper colour); the centre disc is the pigment mixing area (result colour)',
   'canvas.substrate': 'Substrate (canvas base)',
   'canvas.baseHex': 'Custom base',
+  'canvas.observed': 'Observed (what I see)',
+  'canvas.observedHint': 'Type the colour you actually see; the disc renders it and reports the gap from the computed value',
+  'canvas.observedBadge': 'observed',
+  'canvas.computed': 'computed',
   'canvas.custom': 'Custom…',
 
   /* ---- layers ---- */

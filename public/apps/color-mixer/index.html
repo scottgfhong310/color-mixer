@@ -58,9 +58,11 @@
           -->
           <div id="canvas" class="canvas" role="img" data-i18n-title="canvas.aria" title="基材與疊加區">
             <div id="mix-disc" class="mix-disc">
+              <span id="disc-badge" class="disc-badge" style="display:none" data-i18n="canvas.observedBadge">目視</span>
               <div class="canvas-readout">
                 <div id="result-hex" class="result-hex">#ffffff</div>
                 <div id="result-rgb" class="result-rgb">rgb(255, 255, 255)</div>
+                <div id="disc-compare" class="disc-compare" style="display:none"></div>
               </div>
             </div>
           </div>
@@ -73,6 +75,16 @@
             <div class="field field-hex">
               <label class="field-label" for="base-hex" data-i18n="canvas.baseHex">自訂底色</label>
               <input id="base-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#ffffff" />
+            </div>
+            <!--
+              目視色：**你看到的顏色**，不是算出來的。填了它，中央的圓就改渲染這個值。
+              ⚠️ 圓圈絕不能默默換內容——填了之後圓上會出現「目視」徽章，讀數也會同時
+                 印出計算值與兩者的 ΔE00。那個差距正是校準要記的東西（見 DESIGN.md §2）。
+            -->
+            <div class="field field-hex">
+              <label class="field-label" for="observed-hex" data-i18n="canvas.observed">目視色（我看到的）</label>
+              <input id="observed-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#171159"
+                     data-i18n-title="canvas.observedHint" title="填你實際看到的顏色；圓圈會改用它渲染" />
             </div>
           </div>
 

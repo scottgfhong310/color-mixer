@@ -8,6 +8,10 @@ I18n.register('zh-Hant', {
   'canvas.aria': '外圈是基材（紙色），中央的圓是顏料疊加區（結果色）',
   'canvas.substrate': '基材（畫布底色）',
   'canvas.baseHex': '自訂底色',
+  'canvas.observed': '目視色（我看到的）',
+  'canvas.observedHint': '填你實際看到的顏色；圓圈會改用它渲染，並印出與計算值的差距',
+  'canvas.observedBadge': '目視',
+  'canvas.computed': '計算值',
   'canvas.custom': '自訂…',
 
   /* ---- 顏料層 ---- */

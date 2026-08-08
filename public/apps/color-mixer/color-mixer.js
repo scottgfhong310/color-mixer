@@ -100,6 +100,7 @@
     model: Lib.DEFAULT_MODEL,
     substrate: null,
     stack: { base: '#ffffff', layers: [] },
+    observed: null,          // 目視色：使用者「看到的」顏色，不參與合成（見 renderCanvas）
     brands: BRANDS.map(function (b) { return b.id; }),   // 篩選 chips：預設全開
     useCalib: false,
     pickBrand: 'copic-color'
@@ -124,10 +125,25 @@
   /** 每個出口都自己算一次——見檔頭。 */
   function result() { return Lib.compose(state.stack, state.model); }
 
+  /**
+   * 圓圈實際顯示的顏色：有目視色就用它，否則用計算結果。
+   * ⚠️ **這兩者不可混為一談**——計算值是模型算的，目視色是人看的，
+   *    它們的差距正是校準要記的東西（DESIGN.md §2 的 ①→③）。
+   *    所以凡是「圓圈現在是什麼顏色」都問這支，凡是「模型算出什麼」都問 result()。
+   */
+  function discColor() {
+    if (!state.observed) return result();
+    // ⚠️ **回傳形狀必須與 result() 一致**（含 .hex）——呼叫端有 renderCopyRow 之類直接讀
+    //    `.hex` 的地方，只回 {r,g,b} 會讓複製鈕顯示 undefined，而畫面其他地方看起來正常。
+    var c = Lib.hexToRgb(state.observed);
+    return { hex: state.observed, r: c.r, g: c.g, b: c.b };
+  }
+
   // ---- 網址列＝存檔 -----------------------------------------------------
 
   function pushUrl() {
-    var qs = Lib.encodeState({ model: state.model, substrate: state.substrate, stack: state.stack });
+    var qs = Lib.encodeState({ model: state.model, substrate: state.substrate,
+                               observed: state.observed, stack: state.stack });
     try { history.replaceState(null, '', '?' + qs); } catch (e) { /* file:// 下會丟，忽略 */ }
   }
   function readUrl() {
@@ -135,6 +151,7 @@
     if (!s) return false;
     state.model = s.model;
     state.substrate = s.substrate;
+    state.observed = s.observed || null;
     state.stack = s.stack;
     return true;
   }
@@ -143,22 +160,36 @@
 
   function renderCanvas() {
     var r = result();
+    var d = discColor();               // 圓圈實際顯示的（目視色優先）
+    var obs = !!state.observed;
 
-    // 畫布＝基材（紙色），中央的圓＝疊加結果。**兩個不同的顏色，別接錯。**
+    // 畫布＝基材（紙色），中央的圓＝疊加結果**或目視色**。三個不同的顏色，別接錯。
     $('#canvas').css({ background: state.stack.base });
     $('#mix-disc').css({
-      background: r.hex,
-      color: Lib.pickTextColor(r),     // 讀數在圓內，所以對比要算在「結果色」上
+      background: d.hex,
+      color: Lib.pickTextColor(d),     // 讀數在圓內，所以對比要算在圓的顏色上
       // ⚠️ 沒有顏料層時 r.hex === base，圓與紙同色會整個消失。加一圈極淡的環，
       //    環色由**紙色**決定（不是結果色）——它畫在兩者交界上，貼著紙那一側。
       boxShadow: '0 0 0 1px ' + (Lib.pickTextColor(Lib.hexToRgb(state.stack.base)) === '#ffffff'
         ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.18)')
     });
 
-    $('#result-hex').text(r.hex);
-    $('#result-rgb').text(Lib.formatRgb(r));
+    // ⚠️ 圓圈顯示的不是計算結果時**一定要看得出來**——畫面不可以默默換內容。
+    $('#disc-badge').toggle(obs);
+    $('#result-hex').text(d.hex);
+    $('#result-rgb').text(Lib.formatRgb(d));
+    if (obs) {
+      var dE = Lib.deltaE(Lib.rgbToLab(r.r, r.g, r.b), Lib.rgbToLab(d.r, d.g, d.b));
+      // 目視 vs 計算的差距——這一格就是日後校準紀錄裡「型錄值 → 認可值」那條線
+      $('#disc-compare').html(esc(t('canvas.computed')) + ' ' + esc(r.hex)
+        + '<br>ΔE ' + dE.toFixed(2) + ' · ' + esc(t('band.' + Lib.deltaEBand(dE)))).show();
+    } else {
+      $('#disc-compare').hide().empty();
+    }
+
     $('#base-hex').val(state.stack.base);
-    renderCopyRow(r);
+    $('#observed-hex').val(state.observed || '');
+    renderCopyRow(d);
   }
 
   // §11.1：順序固定 var → hex → rgb → class
@@ -241,8 +272,10 @@
   // ---- 渲染：最接近色 ---------------------------------------------------
 
   function nearestLists() {
-    var r = result();
-    var rgb = { r: r.r, g: r.g, b: r.b };
+    // 用**圓圈現在顯示的顏色**比對：填了目視色，你要找的就是「像我看到的那個」的筆，
+    // 而不是「像模型算出來的那個」。沒填時兩者相同。
+    var d = discColor();
+    var rgb = { r: d.r, g: d.g, b: d.b };
     return BRANDS.filter(function (b) { return state.brands.indexOf(b.id) >= 0; })
       .map(function (b) {
         var colors = state.useCalib && state.substrate
@@ -557,6 +590,15 @@
       renderAll();
     });
 
+    // 目視色：填了就改渲染圓圈；清空回到計算結果
+    $('#observed-hex').on('change', function () {
+      var v = String(this.value || '').trim();
+      if (!v) { state.observed = null; renderAll(); return; }
+      if (!Lib.isHex(v)) { toast(t('toast.badHex', { v: v }), 'red'); $('#observed-hex').val(state.observed || ''); return; }
+      state.observed = Lib.rgbToHex(Lib.hexToRgb(v));
+      renderAll();
+    });
+
     // 自訂底色
     $('#base-hex').on('change', function () {
       var v = String(this.value || '').trim();
@@ -636,12 +678,14 @@
     });
     $('#setting-share').on('click', function () {
       var url = window.location.origin + window.location.pathname + '?'
-        + Lib.encodeState({ model: state.model, substrate: state.substrate, stack: state.stack });
+        + Lib.encodeState({ model: state.model, substrate: state.substrate,
+                            observed: state.observed, stack: state.stack });
       copyText(url, null);
       window.SideTool.setIconDone(this);
     });
     $('#setting-reset').on('click', function () {
       state.stack = Lib.normalizeStack({ base: state.stack.base, layers: [] });
+      state.observed = null;
       renderAll();
       toast(t('toast.reset'), 'grey');
       window.SideTool.setIconDone(this);

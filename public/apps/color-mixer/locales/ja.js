@@ -8,6 +8,10 @@ I18n.register('ja', {
   'canvas.aria': '外側は基材（紙の色）、中央の円は顔料の重ね合わせ領域（結果色）',
   'canvas.substrate': '基材（キャンバスの地色）',
   'canvas.baseHex': '地色を直接指定',
+  'canvas.observed': '目視色（見えている色）',
+  'canvas.observedHint': '実際に見えている色を入力すると、円がその色で描画され、計算値との差も表示されます',
+  'canvas.observedBadge': '目視',
+  'canvas.computed': '計算値',
   'canvas.custom': 'カスタム…',
 
   /* ---- 顔料レイヤー ---- */

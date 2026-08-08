@@ -79,6 +79,16 @@ body {
   transition: background .18s, box-shadow .18s;
 }
 .canvas-readout { font-variant-numeric: tabular-nums; text-align: center; }
+/* 目視徽章：圓圈顯示的不是計算結果時，一定要看得出來——**畫面不可以默默換內容**。 */
+.mix-disc { position: relative; }
+.disc-badge {
+  position: absolute; top: 12%; left: 50%; transform: translateX(-50%);
+  font-size: .62rem; letter-spacing: .12em; font-weight: 700;
+  border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; opacity: .8;
+}
+/* 計算值與 ΔE00：目視色與算出來的差多少，正是校準要記的東西 */
+.disc-compare { font-size: .7rem; opacity: .78; margin-top: 6px; line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 /* ⚠️ 字色由 pickTextColor 算出、寫在 .mix-disc 的 inline style 上，但文字包在子元素裡，
    而 materialize-dark.css 有一條 `body,p,span,li,…{color:var(--mz-text)}` 會蓋掉它
    ——淺色結果於是變成白字白底。§11.1 明文記載的坑，三支色彩 app 都用同一道解法。 */
