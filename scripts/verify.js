@@ -512,6 +512,54 @@ check('F9', '色的識別用品牌自己的鍵——CDA 同色碼跨系列是不
   return { ok: true, detail: 'CDA key = seriesId-code；卡片與 findColor 都走它' };
 });
 
+check('F10', 'App icon／favicon／PWA（§5.5 checklist：驗內容，不是驗檔案在不在）', () => {
+  // ⚠️ 家族在這條上抓過三個洞，**全部是「檔案在、但內容不是那個東西」**：
+  //    chat-archive 的 .ico 其實是 SVG 改副檔名、session-journal 的 favicon-light.svg
+  //    其實是深版的複製件、color-palette 的 .ico 缺 48px。
+  //    看 markup 或看檔案在不在都查不出來，所以下面每一條都讀內容。
+  const ic = (f) => path.join(APP, 'icons', f);
+  const need = ['favicon.svg', 'favicon-light.svg', 'favicon.ico', 'manifest.json',
+                'color-mixer-icon.svg', 'color-mixer-icon-light.svg',
+                'icon-16.png', 'icon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+  const miss = need.filter((f) => !fs.existsSync(ic(f)));
+  if (miss.length) throw new Error('缺：' + miss.join(', '));
+
+  // ① 淺版真的是淺版——`cp favicon.svg favicon-light.svg` 不算數
+  if (fs.readFileSync(ic('favicon.svg')).equals(fs.readFileSync(ic('favicon-light.svg'))))
+    throw new Error('favicon-light.svg 與 favicon.svg 逐位元組相同＝根本沒有淺版');
+
+  // ② .ico 是真的 ICO：直接解 header（reserved=0, type=1, count>=3）
+  const b = fs.readFileSync(ic('favicon.ico'));
+  const reserved = b.readUInt16LE(0), type = b.readUInt16LE(2), count = b.readUInt16LE(4);
+  if (reserved !== 0 || type !== 1)
+    throw new Error(`favicon.ico 不是 ICO（reserved=${reserved} type=${type}）——是不是 cp 了 svg？`);
+  if (count < 3) throw new Error(`ICO 只有 ${count} 張，家族標準是 16/32/48 三張`);
+
+  // ③ manifest 路由與 theme-color 對齊頁面底（不是 icon 的顏色）
+  const m = JSON.parse(fs.readFileSync(ic('manifest.json'), 'utf8'));
+  if (m.start_url !== '/apps/color-mixer/' || m.scope !== '/apps/color-mixer/')
+    throw new Error('manifest start_url / scope 要都明寫成 /apps/color-mixer/');
+  const html = read('index.html');
+  const tc = /name="theme-color" content="([^"]+)"/.exec(html);
+  if (!tc) throw new Error('index.html 沒有 meta theme-color');
+  if (!(tc[1] === m.theme_color && tc[1] === m.background_color))
+    throw new Error(`theme-color(${tc[1]}) / theme_color(${m.theme_color}) / background_color(${m.background_color}) 三者要一致`);
+  if (!m.icons.some((x) => x.purpose === 'maskable')) throw new Error('manifest 缺一張 maskable');
+
+  // ④ 徽章：第一顆側鍵掛 .app-icon，且它是**取代** material-icon 而不是多一顆
+  const rail = html.slice(html.indexOf('class="side-tools"'));
+  const first = rail.slice(0, rail.indexOf('</div>', rail.indexOf('id="setting-')) + 6);
+  if (!/class="app-icon"/.test(first)) throw new Error('第一顆側鍵沒有掛 .app-icon 徽章');
+  if (/material-icons/.test(first)) throw new Error('徽章鍵還留著 material-icon——徽章是取代它，不是並存');
+
+  // ⑤ icon 的重疊色必須是 lib 真的算得出來的（make-icons.py 現算，不寫死）
+  const svg = fs.readFileSync(ic('favicon.svg'), 'utf8');
+  const mixHex = L.compose({ base: '#2b5fa8', layers: [{ hex: '#f2d024', alpha: 0.5 }] }, 'km').hex;
+  if (!svg.includes(mixHex))
+    throw new Error(`favicon.svg 裡沒有 lib 算出的重疊色 ${mixHex}——icon 與模型漂開了，重跑 scripts/make-icons.py`);
+  return { ok: true, detail: `ICO ${count} 張、深淺兩版不同、重疊色 ${mixHex} 與 lib 一致` };
+});
+
 check('F4', 'i18n：模型有幾個，三語就要有幾組文案', () => {
   const langs = ['zh-Hant', 'en', 'ja'];
   const missing = [];

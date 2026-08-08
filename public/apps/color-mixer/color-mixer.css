@@ -292,4 +292,22 @@ body {
 }
 .calib-modal { max-width: 640px; }
 
+/* ---- 側鍵徽章（§5.5 甲變體：掛在第一顆入口鍵上，取代其 material-icon） ----
+ * tile 自帶底色，故深／淺各備一張、隨 app 內主題切換（favicon 跟的是 OS 偏好，兩者不同）。
+ * 用 background-image 不用 <img>：換版純 CSS、免 JS。
+ */
+#setting-add {
+  border-radius: 22%;                 /* 圓角正方形，比照 app icon tile（取代其餘按鈕的正圓） */
+  background: none; overflow: hidden; /* tile 自帶底色、貼齊圓角（保留 .side-tool 的 border＋陰影） */
+}
+#setting-add .app-icon {
+  display: block; width: 100%; height: 100%;
+  background: url('./icons/color-mixer-icon.svg') center / cover no-repeat;
+}
+[data-theme="light"] #setting-add .app-icon {
+  background-image: url('./icons/color-mixer-icon-light.svg');
+}
+/* 第一顆是徽章 → 與第二顆間距加倍（品牌／工具分區） */
+.side-tools > .side-tool:first-child:has(.app-icon) { margin-bottom: var(--tool-gap); }
+
 @media print { .side-tools { display: none !important; } }

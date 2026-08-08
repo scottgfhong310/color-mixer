@@ -234,8 +234,13 @@ owner 的原始描述是：「B39 在白色 A4 紙上，感覺紙上的顏色**�
 - **`color-metric.js` 共用件**：五支品牌 lib ＋ 本支的色彩科學核心逐字相同、共六份複製。
   抽出來是對的（比照 v1.18 的 `color-family.js`），但那是一次跨 6 個 repo 的收斂，
   **刻意不混進第一版**（v1.17／v1.18 記過兩次「commit 訊息與內容對不起來」）。
-- **icons/ 與 favicon set**（§5.5 checklist）：尚未製作，故 `index.html` 目前不掛 favicon 連結
-  ——**寧可沒有，也不要掛一組指向不存在檔案的連結**。
+- ~~**icons/ 與 favicon set**~~ **已完成**（2026-08-08）：`scripts/make-icons.py` 產整套，
+  `.ico` 走家族 `tools/make-ico.sh`（**不可 `cp`**）。標記是**兩片色重疊、交集是減色的結果**
+  ——與另五支色彩 app 區隔：那些描述「一批色」，本 app 描述「兩色相遇會怎樣」。
+  ⚠️ **重疊色不寫死，由本 app 的 lib 現算**（比照 `copic-color` 的 make-icons.py「九格由資料現查」）：
+  模型改了 icon 跟著改，`verify.js` F10 條第 ⑤ 項比對兩者是否仍相同。
+  ⚠️ **交集是畫上去的第三個形狀，不是用 `fill-opacity` 疊的**——瀏覽器的 alpha 合成給的是
+  灰橄欖 `#8f9866`，減色才給得出綠 `#3d7833`；用 opacity 疊等於這枚 icon 在反駁自己。
 - 發佈（`gh repo create`）、家族 README 成員表、`app-launcher` registry、i18n 盤點匯入。
 
 ---

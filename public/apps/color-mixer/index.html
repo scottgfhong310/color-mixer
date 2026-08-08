@@ -6,6 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>color-mixer — 調色盤</title>
+
+  <!-- App icon / favicon / PWA（§5.5；一律相對路徑，獨立版與 InProgress 鏡像共用一份）
+       深/淺兩版 SVG 跟的是 **OS 的 prefers-color-scheme**，不是 app 內的主題鈕；
+       無 media 的那條是不支援 media 的瀏覽器的 fallback。 -->
+  <link rel="icon" href="./icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon-light.svg" media="(prefers-color-scheme: light)" />
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./icons/icon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+  <link rel="manifest" href="./icons/manifest.json" />
+  <!-- ＝深色頁面底 --bg，不是 icon 的顏色：手機上緣列與 PWA splash 才會與 app 無縫（§5.5） -->
   <meta name="theme-color" content="#0f1115" />
 
   <!-- 防主題閃爍：render 前先讀 localStorage 設好 data-theme 與 dark-mode/light-mode class（§5.1 坑） -->
@@ -149,8 +162,10 @@
 
   <!-- ===== 右側工具列（§5.5：入口 → app 工具 → mode → lang） ===== -->
   <div class="side-tools">
+    <!-- §5.5（甲）變體：本 app 沒有 #setting-menu，故徽章掛在**第一顆入口鍵**上、
+         取代它的 material-icon——徽章＝品牌識別＋保留該鍵原動作，不多一顆「不做事」的 icon。 -->
     <div id="setting-add" class="side-tool" data-i18n-title="tool.add" title="加一層顏料">
-      <i class="material-icons">palette</i>
+      <span class="app-icon" role="img" aria-label="color-mixer"></span>
     </div>
     <div id="setting-calib" class="side-tool" data-i18n-title="tool.calib" title="校準紀錄">
       <i class="material-icons">science</i>
