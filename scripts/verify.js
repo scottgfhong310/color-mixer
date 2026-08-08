@@ -541,6 +541,45 @@ check('H5', 'hex 欄位的套用鍵與 change 走同一個 commit，不是兩份
     + '基材欄 flex:3 ＋ min-width:0　本列讓出側欄寬度' };
 });
 
+check('H6', '兩個主題下，選中 chip 的字色都要過 WCAG AA（實算，不是看有沒有寫）', () => {
+  // ⚠️ 這條**實際算對比**，不是檢查「有沒有設 color」。
+  //    原本兩條 chip 規則寫死 `#08111c`——那是配深色主題的淺藍 accent 挑的，
+  //    到了淺色主題（accent 變成深藍）就成了近黑配深藍，實測 3.65:1，不到 AA 的 4.5。
+  //    **深淺兩個主題不可能共用同一個 on-accent 字色**，所以它必須是 token。
+  const css = read('color-mixer.css');
+  const block = (sel) => {
+    const i = css.indexOf(sel);
+    if (i < 0) throw new Error(`找不到 ${sel} 的 token 區塊`);
+    return css.slice(i, css.indexOf('}', i));
+  };
+  const tok = (b, name) => {
+    const m = b.match(new RegExp(`--${name}\\s*:\\s*(#[0-9a-fA-F]{6})`));
+    if (!m) throw new Error(`區塊裡找不到 --${name}`);
+    return m[1];
+  };
+  const themes = {
+    dark: block(':root, [data-theme="dark"]'),
+    light: block('[data-theme="light"]'),
+  };
+  const out = [];
+  Object.entries(themes).forEach(([name, b]) => {
+    const accent = tok(b, 'accent'), on = tok(b, 'on-accent');
+    const c = hx(on), a = hx(accent);
+    // 共用件那把尺：relLuminance 直接給對比的兩邊
+    const lum = (x) => CM.relLuminance(x.r, x.g, x.b);
+    const [hi, lo] = [lum(c), lum(a)].sort((p, q) => q - p);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    if (ratio < 4.5)
+      throw new Error(`${name}：--on-accent ${on} 疊在 --accent ${accent} 上只有 `
+        + `${ratio.toFixed(2)}:1，不到 WCAG AA 的 4.5`);
+    out.push(`${name} ${on} on ${accent} = ${ratio.toFixed(2)}:1`);
+  });
+  // 而且不可以再有寫死的 on-accent 字色（那是它一開始壞掉的方式）
+  const hard = css.match(/background:\s*var\(--accent\)[^;}]*;\s*[^}]*color:\s*#[0-9a-fA-F]{3,6}/g);
+  if (hard) throw new Error('還有規則把 accent 當底卻寫死字色：' + hard[0].slice(0, 60));
+  return { ok: true, detail: out.join('　') };
+});
+
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {
   const bad = ['', '?', 'garbage', 'b=zzzzzz', 'm=km', '?m=nope&b=', 'l=abc'];
   const wrong = bad.filter((s) => L.decodeState(s) !== null);

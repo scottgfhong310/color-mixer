@@ -8,6 +8,12 @@
   --bg:#0f1115; --surface:#161a22; --surface-2:#1b2030;
   --text:#e8eaf0; --muted:#a8b0c0; --border:rgba(255,255,255,.12);
   --accent:#90caf9; --card-bg:#0f1115;
+  /* 疊在 --accent 上的字色。**兩個主題不可共用同一個值**——深色的 accent 是淺藍、
+     淺色的是深藍，同一個字色不可能在兩邊都可讀。實測對比（ColorMetric 那把尺）：
+       dark  #08111c on #90caf9 = 10.84:1 ✔    白字 1.75:1 ✘
+       light #ffffff on #0969da =  5.19:1 ✔    #08111c 3.65:1 ✘（不到 WCAG AA 4.5）
+     `verify.js` H6 會實算這兩組對比，改 --accent 而忘了這裡就會紅。 */
+  --on-accent:#08111c;
   --tool-bg:#1b2030; --tool-fg:#e8eaf0;
   --overlay:rgba(10,14,22,.84); --drop-border:#3a4252;
   color-scheme: dark;
@@ -16,6 +22,7 @@
   --bg:#f6f8fa; --surface:#fff; --surface-2:#eef1f5;
   --text:#1f2328; --muted:#57606a; --border:rgba(0,0,0,.12);
   --accent:#0969da; --card-bg:#fff;
+  --on-accent:#ffffff;
   --tool-bg:#fff; --tool-fg:#1f2328;
   --overlay:rgba(240,243,247,.86); --drop-border:#c4ccd6;
   color-scheme: light;
@@ -195,7 +202,7 @@ body {
   font-size: .78rem; cursor: pointer; transition: background .15s, border-color .15s;
 }
 .group-chip:hover, .group-chip:focus { border-color: var(--accent); background: var(--surface); }
-.group-chip.active { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 600; }
+.group-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .group-chip.active:hover { background: var(--accent); }
 .chip-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 5px; }
 
@@ -208,7 +215,7 @@ body {
   font-size: .78rem; cursor: pointer; transition: background .15s, border-color .15s;
 }
 .type-chip:hover, .type-chip:focus { border-color: var(--accent); background: var(--surface); }
-.type-chip.active { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 600; padding-left: 7px; }
+.type-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; padding-left: 7px; }
 .type-chip.active:hover { background: var(--accent); }
 .type-chip.active::before {
   content: 'check'; font-family: 'Material Icons';
