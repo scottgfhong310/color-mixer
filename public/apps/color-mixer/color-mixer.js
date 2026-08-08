@@ -34,6 +34,10 @@
     {
       id: 'caran-dache-color', label: 'Caran d’Ache', short: 'CDA',
       colors: function () { return window.CDA_COLORS || []; },
+      // ⚠️ CDA 的身分是 (系列, 色碼)：同色碼跨系列是不同顏色（治理 §3.1）。
+      //    nearestCDA 的結果與 CDA_COLORS 的元素都帶 seriesId，故兩邊共用這支。
+      key: function (c) { return (c.seriesId || '?') + '-' + c.code; },
+      badge: function (c) { return c.seriesId || ''; },
       near: function (rgb, n, colors) {
         return window.CaranDacheColorLib.nearestCDA(rgb, { n: n, colors: colors });
       },
@@ -71,6 +75,20 @@
       name: function (c) { return window.EnmyColorLib.displayName(c, lang()); }
     }
   ];
+  /**
+   * ⚠️ **色碼不是所有品牌的唯一識別。** Caran d'Ache 的身分是 (seriesId, code)——
+   * 同色碼跨系列是**不同的顏色**（db_artcolor 治理 §3.1），實查 `120` 在 CDA_COLORS
+   * 裡有 **9 列**。只用 code 當鍵會讓「點卡片開明細」開到另一個顏色，而畫面不會報錯：
+   * 實測點 NEO-120（#2d1955 深紫）開出來的是 LUM-120（#815ea0 淺紫）。
+   * 各品牌預設以 code 為鍵；CDA 在自己的登記裡覆寫 key／badge。
+   */
+  function defaultKey(c) { return String(c.code); }
+  function noBadge() { return ''; }
+  BRANDS.forEach(function (b) {
+    if (!b.key) b.key = defaultKey;
+    if (!b.badge) b.badge = noBadge;
+  });
+
   function brandOf(id) {
     for (var i = 0; i < BRANDS.length; i++) if (BRANDS[i].id === id) return BRANDS[i];
     return null;
@@ -251,10 +269,13 @@
       //    而各品牌的 nearestXxx 會把結果**投影**成自己那組固定欄位再回傳，自訂欄位
       //    一律被丟掉。實測結果是色片用了校準值、徽章卻不亮，而且不會報錯。
       var cal = state.useCalib && Lib.hasCalibration(it.brand, it.code, state.substrate);
+      var bd = brandOf(it.brand);
+      var bdg = bd.badge(it);      // CDA 攤平後不標系列就分不出誰是誰
       return ''
-        + '<div class="near-card" data-brand="' + esc(it.brand) + '" data-code="' + esc(it.code) + '">'
+        + '<div class="near-card" data-brand="' + esc(it.brand) + '" data-key="' + esc(bd.key(it)) + '">'
         + '  <div class="near-sw" style="background:' + esc(it.hex) + ';color:' + fg + '">'
         + '    <span class="code">' + esc(it.code) + '</span>'
+        + (bdg ? '<span class="cal">' + esc(bdg) + '</span>' : '')
         + (cal ? '<span class="cal">' + esc(t('near.calibrated')) + '</span>' : '')
         + '  </div>'
         + '  <div class="near-meta">'
@@ -337,7 +358,7 @@
     $('#pick-grid').html(list.slice(0, 400).map(function (c) {
       var fg = Lib.pickTextColor({ r: c.r, g: c.g, b: c.b });
       return '<div class="pick-sw" style="background:' + esc(c.hex) + ';color:' + fg + '"'
-        + ' data-code="' + esc(c.code) + '" title="' + esc(c.code + '  ' + b.name(c)) + '">'
+        + ' data-key="' + esc(b.key(c)) + '" title="' + esc(b.key(c) + '  ' + b.name(c)) + '">'
         + '<span>' + esc(c.code) + '</span></div>';
     }).join(''));
   }
@@ -351,35 +372,37 @@
     if (inst) { inst.isOpen ? inst.close() : inst.open(); }
   }
 
-  function findColor(brandId, code) {
+  /** 以**品牌自己的識別**找色（CDA 是 seriesId-code，其餘是 code）。 */
+  function findColor(brandId, key) {
     var b = brandOf(brandId);
     if (!b) return null;
     var list = b.colors();
-    for (var i = 0; i < list.length; i++) if (String(list[i].code) === String(code)) return list[i];
+    for (var i = 0; i < list.length; i++) if (b.key(list[i]) === String(key)) return list[i];
     return null;
   }
 
-  function addLayer(brandId, code) {
+  function addLayer(brandId, key) {
     if (state.stack.layers.length >= Lib.MAX_LAYERS) {
       return toast(t('layers.full', { n: Lib.MAX_LAYERS }), 'orange');
     }
-    var c = findColor(brandId, code);
+    var c = findColor(brandId, key);
     if (!c) return;
+    // src.code 存的是**品牌自己的識別**（CDA 是 seriesId-code），網址帶得走、找得回來
     state.stack = Lib.normalizeStack({
       base: state.stack.base,
-      layers: state.stack.layers.concat([{ hex: c.hex, alpha: 0.6, src: { brand: brandId, code: code } }])
+      layers: state.stack.layers.concat([{ hex: c.hex, alpha: 0.6, src: { brand: brandId, code: key } }])
     });
     renderAll();
-    toast(t('toast.layerAdded', { n: brandOf(brandId).label + ' ' + code }), 'green');
+    toast(t('toast.layerAdded', { n: brandOf(brandId).label + ' ' + key }), 'green');
   }
 
   // ---- 明細 Modal（§11.1 骨架） -----------------------------------------
 
-  function openDetail(brandId, code) {
+  function openDetail(brandId, key) {
     var b = brandOf(brandId);
-    var c = findColor(brandId, code);
+    var c = findColor(brandId, key);
     if (!b || !c) return;
-    detailCtx = { brand: brandId, code: code };
+    detailCtx = { brand: brandId, code: key };
     renderDetail();
     window.M.Modal.getInstance(document.getElementById('detail-modal')).open();
   }
@@ -581,12 +604,12 @@
     $('#pick-grid').on('click', '.pick-sw', function () {
       // ⚠️ **刻意不關面板**：這正是它從 Modal 改成側欄的理由——挑一支、看畫布怎麼變、
       //    再挑下一支是一個連續動作。關掉面板等於把「回去再挑」變回一個需要存在的動作。
-      addLayer(state.pickBrand, $(this).data('code'));
+      addLayer(state.pickBrand, $(this).data('key'));
     });
 
     // 最接近色 → 明細
     $('#near-list').on('click', '.near-card', function () {
-      openDetail($(this).data('brand'), $(this).data('code'));
+      openDetail($(this).data('brand'), $(this).data('key'));
     });
     $('#d-use').on('click', function () {
       if (detailCtx) addLayer(detailCtx.brand, detailCtx.code);

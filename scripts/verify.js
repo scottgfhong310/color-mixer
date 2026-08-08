@@ -445,6 +445,33 @@ check('F7', '挑色走右側 sidenav，且挑完不關面板', () => {
   return { ok: true, detail: 'sidenav(right) ＋ 挑完保持開啟' };
 });
 
+check('F9', '色的識別用品牌自己的鍵——CDA 同色碼跨系列是不同顏色', () => {
+  // ⚠️ 這條是踩到才補的。CDA 的身分是 (seriesId, code)：實查 `120` 在 CDA_COLORS 有 **9 列**。
+  //    只用 code 當鍵時，點「NEO-120（#2d1955 深紫）」的卡片，開出來的明細是
+  //    `LUM-120（#815ea0 淺紫）`——**完全不同的顏色，而且沒有任何東西會報錯**。
+  const js = read('color-mixer.js')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // ① CDA 的登記必須覆寫 key（否則落回 defaultKey ＝ 只看 code）
+  const cda = js.slice(js.indexOf("id: 'caran-dache-color'"));
+  const blk = cda.slice(0, cda.indexOf('\n    }'));
+  if (!/key:\s*function/.test(blk)) throw new Error("caran-dache-color 沒有覆寫 key()");
+  if (!/seriesId/.test(blk)) throw new Error('CDA 的 key 沒有用到 seriesId');
+
+  // ② 卡片與挑色格子都要帶 data-key，且 handler 讀它（讀 data-code 就是舊 bug）
+  if (/data-code="/.test(js)) throw new Error("還有地方在寫 data-code——色的識別要用 data-key");
+  ["data('key')"].forEach((x) => {
+    if (!js.includes(x)) throw new Error('handler 沒有讀 ' + x);
+  });
+
+  // ③ findColor 必須以 b.key() 比對，不可比 code
+  const f = js.slice(js.indexOf('function findColor'));
+  const body = f.slice(0, f.indexOf('\n  }'));
+  if (!/b\.key\(/.test(body)) throw new Error('findColor 沒有用 b.key() 比對');
+  if (/\.code\s*===/.test(body)) throw new Error('findColor 還在直接比 code');
+  return { ok: true, detail: 'CDA key = seriesId-code；卡片與 findColor 都走它' };
+});
+
 check('F4', 'i18n：模型有幾個，三語就要有幾組文案', () => {
   const langs = ['zh-Hant', 'en', 'ja'];
   const missing = [];
