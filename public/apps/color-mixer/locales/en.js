@@ -92,6 +92,8 @@ I18n.register('en', {
   /* ---- calibration ---- */
   'calib.title': 'Calibration records',
   'calib.note': 'Calibration data is exported from db_artcolor; this app is read-only. The three hexes answer different questions: catalogue → accepted is the screen-vs-paper gap; anchor → accepted is your own visual bias.',
+  'canvas.noBaseShort': '(paper colour unmeasured)',
+  'calib.noBase': 'The paper colour of "{s}" has never been measured, so the canvas falls back to white. Under the glaze model the paper shows through, so what you see is currently the white-paper answer.',
   'calib.stubWarn': 'The calibration data currently loaded is placeholder, not measured — do not make colour decisions from it.',
   'calib.empty': 'No calibration records yet.',
   'calib.count': '{n} record(s)',

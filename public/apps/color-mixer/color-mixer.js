@@ -184,6 +184,15 @@
     var d = discColor();               // 圓圈實際顯示的（目視色優先）
     var obs = !!state.observed;
 
+    // ⚠️ 紙色沒量過就要在畫布上講出來。`baseKnown === false` 的基材沒有 baseHex，
+    //    normalizeStack 對缺席的 base **退回 #ffffff**——宣紙於是渲染成白紙，
+    //    而 glaze 模型下紙色會透出來，整條算出來的東西都是白紙的答案。
+    //    **沒有任何東西會報錯**，所以只能靠這條告示（verify H4 擋著）。
+    var sub = state.substrate ? Lib.substrateOf(state.substrate) : null;
+    var noBase = !!(sub && sub.baseKnown === false);
+    $('#calib-nobase').toggle(noBase);
+    if (noBase) $('#calib-nobase-text').text(t('calib.noBase', { s: substrateName(sub) }));
+
     // 畫布＝基材（紙色），中央的圓＝疊加結果**或目視色**。三個不同的顏色，別接錯。
     $('#canvas').css({ background: state.stack.base });
     $('#mix-disc').css({
@@ -397,8 +406,13 @@
   function renderSubstrates() {
     var opts = ['<option value="">' + esc(t('canvas.custom')) + '</option>'];
     substrates().forEach(function (s) {
+      // ⚠️ 紙色沒量過的基材要在選項上就講出來。`baseKnown === false` 時 baseHex 是缺席的，
+      //    而 normalizeStack 對缺席的 base **靜默退回 #ffffff**——宣紙於是渲染成
+      //    跟白 A4 一模一樣的白紙，沒有任何東西報錯。（家族 v1.16：「沒有值」要用
+      //    一個看得見的值表示，不能用欄位消失表示。）
+      var mark = s.baseKnown === false ? '　' + t('canvas.noBaseShort') : '';
       opts.push('<option value="' + esc(s.code) + '"' + (state.substrate === s.code ? ' selected' : '')
-        + '>' + esc(substrateName(s)) + '</option>');
+        + '>' + esc(substrateName(s) + mark) + '</option>');
     });
     var el = document.getElementById('substrate');
     el.innerHTML = opts.join('');
@@ -1025,7 +1039,14 @@
 
     if (!readUrl()) {
       var s = substrates()[0];
-      if (s) { state.substrate = s.code; state.stack.base = s.baseHex; }
+      // ⚠️ 一律過 normalizeStack，**不要直接指派 s.baseHex**：紙色未量測時它是
+      //    `undefined`，而 `$.css({background: undefined})` 是 no-op——畫布會停在
+      //    CSS 預設值而不是白紙，且不報錯。同一條規則只能有一份實作（v1.16），
+      //    而那份就在 normalizeStack 裡（缺席的 base → #ffffff）。
+      if (s) {
+        state.substrate = s.code;
+        state.stack = Lib.normalizeStack({ base: s.baseHex, layers: state.stack.layers });
+      }
     }
 
     measurePools();

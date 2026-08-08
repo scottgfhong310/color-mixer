@@ -104,5 +104,13 @@ InProgress 鏡像），所以上游改版時會主動推過來，不必靠這裡
 `color-metric.js` 共用件抽出、`icons/` 與 favicon set、發佈與家族登錄
 （README 成員表／`app-launcher` registry／i18n 盤點匯入）。
 
-**`data/calibration.js` 目前是佔位資料**——`CM_CALIBRATION_META.stub` 為 true 時畫面掛告示，
-`verify.js` F3 條擋著它不准被拿掉。正式版由 `My Projects/Art Colour/export/a3-export.js --write` 匯出。
+**`data/calibration.js` 自 2026-08-08 起是 `db_artcolor` 的匯出產物、不再是佔位資料**
+（`CM_CALIBRATION_META.stub` 現為 false；stub 那條路徑與 `verify.js` F3 保留，
+下次真的要放佔位資料時還會用到）。**產物是生成物、不手改**：
+跑 `My Projects/Art Colour/export/a3-export.js --write`，再 `--check` 確認逐位元組相同。
+
+⚠️ **兩張紙的紙色仍未量測**（`baseKnown: false`）。那不是漏抽，是還沒量——
+而 `normalizeStack` 對缺席的 base **會退回 `#ffffff`**，於是「紙漿原色宣紙」會渲染成
+跟白 A4 一模一樣的白紙，而 glaze 模型下紙色是會透出來的，**整條算出來的東西都是白紙的答案**。
+零報錯。故基材下拉與畫布上各有一條告示，`verify.js` H4 條擋著（含「不可用 falsy 檢查
+取代 `=== false`」——那會遮蓋「匯出器漏了這個欄位」）。

@@ -59,6 +59,19 @@
         <span data-i18n="calib.stubWarn">目前載入的校準資料是佔位值，不是實測——請勿據以決定用色。</span>
       </div>
 
+      <!--
+        紙色未量測的告示（verify H4 擋著）。
+        ⚠️ 這條不是可有可無的貼心提示，它擋的是一個**完全靜默**的錯誤：
+           `baseKnown: false` 的基材沒有 baseHex，而 normalizeStack 對缺席的 base
+           會退回 `#ffffff`——於是「紙漿原色宣紙」會渲染成跟白 A4 一模一樣的白紙，
+           而 glaze 模型下紙色是會透出來的，整條算出來的東西都是白紙的答案。
+           沒有任何東西會報錯，畫面看起來完全正常。
+      -->
+      <div id="calib-nobase" class="stub-banner" style="display:none">
+        <i class="material-icons">help_outline</i>
+        <span id="calib-nobase-text"></span>
+      </div>
+
       <div class="work">
 
         <!-- ===== 左：畫布 ===== -->

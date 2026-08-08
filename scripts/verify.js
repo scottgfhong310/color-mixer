@@ -468,6 +468,40 @@ check('H3', '微調與穩健度：markup 有人接、三語齊全、滑桿位置
   return { ok: true, detail: `6 個 id 有人接　滑桿位置現算 ✔　${need.length} key × 3 語 = ${need.length * 3} 個都在` };
 });
 
+check('H4', '基材紙色未量測時，畫面一定要講出來', () => {
+  // ⚠️ 這條擋的是一個**完全靜默**的錯誤，不是貼心提示。
+  //    `baseKnown: false` 的基材沒有 baseHex；normalizeStack 對缺席的 base 退回
+  //    `#ffffff`，於是「紙漿原色宣紙」渲染成跟白 A4 一模一樣的白紙——
+  //    而 glaze 模型下紙色會透出來，整條算出來的東西都變成白紙的答案。零報錯。
+  const html = read('index.html');
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  if (!/id="calib-nobase"/.test(html)) throw new Error('index.html 沒有 #calib-nobase 告示元素');
+  if (!/#calib-nobase/.test(js)) throw new Error('控制器沒有接 #calib-nobase');
+  if (!/baseKnown\s*===\s*false/.test(js))
+    throw new Error('控制器沒有判斷 baseKnown === false');
+  // ⚠️ 必須是嚴格比對 `=== false`：`!sub.baseKnown` 會把「欄位不存在」也算進來，
+  //    而匯出器保證這個欄位恆在（家族 v1.16：「沒有值」要用看得見的值表示）。
+  //    寫成 falsy 檢查看起來一樣，但它會遮蓋「匯出器漏了這個欄位」這件事。
+  if (/!\s*sub\.baseKnown|!\s*s\.baseKnown/.test(js))
+    throw new Error('用了 falsy 檢查而不是 === false——會遮蓋「匯出器漏欄位」');
+  // boot 不可以直接指派 s.baseHex（繞過 normalizeStack → $.css 收到 undefined 是 no-op）
+  if (/state\.stack\.base\s*=\s*s\.baseHex/.test(js))
+    throw new Error('boot 直接指派 s.baseHex，繞過了 normalizeStack');
+  // 三語文案
+  const miss = [];
+  ['zh-Hant', 'en', 'ja'].forEach((lg) => {
+    const src = read(`locales/${lg}.js`);
+    ['calib.noBase', 'canvas.noBaseShort'].forEach((k) => {
+      if (!src.includes(`'${k}'`)) miss.push(`${lg}:${k}`);
+    });
+  });
+  if (miss.length) throw new Error('缺三語文案：' + miss.join(', '));
+  // 而且現在真的有未量測的基材——否則這條是空轉的
+  const calib = read('data/calibration.js');
+  const n = (calib.match(/"baseKnown":false/g) || []).length;
+  return { ok: true, detail: `告示已接　現有 ${n} 個基材紙色未量測（這條不是空轉的）` };
+});
+
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {
   const bad = ['', '?', 'garbage', 'b=zzzzzz', 'm=km', '?m=nope&b=', 'l=abc'];
   const wrong = bad.filter((s) => L.decodeState(s) !== null);
