@@ -251,6 +251,7 @@
     **之前**——那兩支在模組載入時就讀 window.ColorFamily，排錯整支 app 當場掛掉
     （家族 CLAUDE.md v1.18）。scripts/verify.js 的 E2 條擋著這件事。
   -->
+  <script src="./color-metric.js"></script>   <!-- 共用件：色彩度量核心（ΔE00／Lab／對比／hexToRgb）——家族六支 lib 的同一把尺；**必須早於所有品牌 lib**，見 SHARED_LIBRARY_GUIDELINES §4 -->
   <script src="./color-family.js"></script>
 
   <!-- 五個品牌的資料（家族色彩 registry 的複製件，由各上游 repo 的 sync-copies.sh 同步） -->

@@ -66,8 +66,12 @@ function hasNul(s) { return s.indexOf(NUL) >= 0; }
 
 const libSrc = read('color-mixer-lib.js');
 const sandbox = {};
+// ⚠️ 必須先載共用件 color-metric.js——lib 在模組載入時就取 window.ColorMetric，
+//    沒有它會在載入當下丟出明確錯誤（那個守衛是刻意的，見 SHARED_LIBRARY_GUIDELINES §4）。
+new Function('window', 'globalThis', read('color-metric.js'))(sandbox, sandbox);
 new Function('window', 'globalThis', libSrc)(sandbox, sandbox);
 const L = sandbox.ColorMixerLib;
+const CM = sandbox.ColorMetric;
 
 const hx = (h) => L.hexToRgb(h);
 const dE = (a, b) => {
@@ -318,7 +322,27 @@ check('E2', 'color-family.js 必須早於依賴它的兩支品牌 lib', () => {
     if (i < 0) throw new Error('未載入 ' + f);
     if (i < cf) throw new Error(`${f}（第 ${i + 1}）排在 color-family.js（第 ${cf + 1}）之前`);
   });
-  return { ok: true, detail: `color-family.js 在第 ${cf + 1} 位，兩支依賴者在其後` };
+  // color-metric.js：**六支 lib（含本 app 的）都在模組載入時取 window.ColorMetric**，
+  // 所以它必須排在全部之前。排錯會在載入當下丟明確錯誤，但那已經是使用者看到白畫面之後了。
+  const cm = order.indexOf('color-metric.js');
+  if (cm < 0) throw new Error('index.html 沒有載入 color-metric.js');
+  const deps = order.filter((f) => /(-color-lib|color-mixer-lib)\.js$/.test(f));
+  const early = deps.filter((f) => order.indexOf(f) < cm);
+  if (early.length) throw new Error('這些 lib 排在 color-metric.js 之前：' + early.join(', '));
+  return { ok: true, detail: `color-metric.js 第 ${cm + 1} 位、color-family.js 第 ${cf + 1} 位，${deps.length} 支 lib 皆在其後` };
+});
+
+check('E4', 'color-metric.js 是家族權威版的 byte-identical 複製件', () => {
+  // ⚠️ 這支是**六支 lib 的同一把尺**——它漂掉的後果不是壞掉，是「最接近的筆」
+  //    在不同 app 給出不同答案，而且沒有任何東西會報錯。
+  const auth = path.join(ROOT, '../nodeapp-webapp-family/color-metric.js');
+  if (!fs.existsSync(auth)) return { ok: true, detail: '（找不到家族 repo，跳過）' };
+  const a = fs.readFileSync(auth), b = fs.readFileSync(path.join(APP, 'color-metric.js'));
+  if (!a.equals(b)) throw new Error('與家族 repo 根的權威版不同——跑 scripts/sync-copies.sh');
+  // 順帶驗它真的是那把尺：hexToRgb 壞輸入必須回 null（抽出時統一的合約）
+  if (CM.hexToRgb('zzz') !== null) throw new Error('hexToRgb 壞輸入沒有回 null');
+  if (CM.hexToRgb('#abc') === null) throw new Error('hexToRgb 不接受 3 位簡寫');
+  return { ok: true, detail: `${a.length} bytes，逐位元組相同` };
 });
 
 check('E3', '五支品牌 lib 與其資料檔都在', () => {

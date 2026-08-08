@@ -66,6 +66,7 @@ check side-tool.js        "$F/side-tool.js"        "nodeapp-webapp-family/side-t
 check materialize-dark.css "$F/materialize-dark.css" "nodeapp-webapp-family/materialize-dark.css"
 # ⚠️ color-family.js 有**載入順序**的硬條件：必須早於 faber-castell / finecolour 兩支 lib
 #    （它們在模組載入時就讀 window.ColorFamily）。scripts/verify.js 的 E2 條擋著。
+check color-metric.js     "$F/color-metric.js"     "nodeapp-webapp-family/color-metric.js"
 check color-family.js     "$F/color-family.js"     "nodeapp-webapp-family/color-family.js"
 
 # filter-clear 的權威版是 local-reader 那份（DESIGN_GUIDELINES §5.12 指定）
