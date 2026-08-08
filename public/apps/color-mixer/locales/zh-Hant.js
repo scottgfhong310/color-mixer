@@ -9,6 +9,7 @@ I18n.register('zh-Hant', {
   'canvas.substrate': '基材（畫布底色）',
   'canvas.baseHex': '自訂底色',
   'canvas.observed': '目視色（我看到的）',
+  'canvas.apply': '套用',
   'canvas.observedHint': '填你實際看到的顏色；圓圈會改用它渲染，並印出與計算值的差距',
   'canvas.observedBadge': '目視',
   'canvas.computed': '計算值',

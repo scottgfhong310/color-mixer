@@ -98,9 +98,21 @@
               <label class="field-label" for="substrate" data-i18n="canvas.substrate">基材（畫布底色）</label>
               <select id="substrate"></select>
             </div>
+            <!--
+              ⚠️ 兩個 hex 欄位的套用鍵**不是** `change` 的替代品，是它的**可見版本**：
+                 `change` 只在 Enter 或失焦時才發生，那件事在畫面上完全看不出來
+                 （尤其填完直接去點別的東西的人，會以為沒生效）。
+                 兩條路走的是同一個 commit 函式，不是兩份實作（v1.16）。
+            -->
             <div class="field field-hex">
               <label class="field-label" for="base-hex" data-i18n="canvas.baseHex">自訂底色</label>
-              <input id="base-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#ffffff" />
+              <div class="hex-row">
+                <input id="base-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#ffffff" />
+                <button id="base-hex-apply" class="hex-apply" type="button"
+                        data-i18n-title="canvas.apply" title="套用">
+                  <i class="material-icons">check</i>
+                </button>
+              </div>
             </div>
             <!--
               目視色：**你看到的顏色**，不是算出來的。填了它，中央的圓就改渲染這個值。
@@ -109,8 +121,14 @@
             -->
             <div class="field field-hex">
               <label class="field-label" for="observed-hex" data-i18n="canvas.observed">目視色（我看到的）</label>
-              <input id="observed-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#171159"
-                     data-i18n-title="canvas.observedHint" title="填你實際看到的顏色；圓圈會改用它渲染" />
+              <div class="hex-row">
+                <input id="observed-hex" type="text" spellcheck="false" autocomplete="off" placeholder="#171159"
+                       data-i18n-title="canvas.observedHint" title="填你實際看到的顏色；圓圈會改用它渲染" />
+                <button id="observed-hex-apply" class="hex-apply" type="button"
+                        data-i18n-title="canvas.apply" title="套用">
+                  <i class="material-icons">check</i>
+                </button>
+              </div>
             </div>
           </div>
 

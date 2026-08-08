@@ -9,6 +9,7 @@ I18n.register('en', {
   'canvas.substrate': 'Substrate (canvas base)',
   'canvas.baseHex': 'Custom base',
   'canvas.observed': 'Observed (what I see)',
+  'canvas.apply': 'Apply',
   'canvas.observedHint': 'Type the colour you actually see; the disc renders it and reports the gap from the computed value',
   'canvas.observedBadge': 'observed',
   'canvas.computed': 'computed',

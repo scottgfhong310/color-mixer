@@ -9,6 +9,7 @@ I18n.register('ja', {
   'canvas.substrate': '基材（キャンバスの地色）',
   'canvas.baseHex': '地色を直接指定',
   'canvas.observed': '目視色（見えている色）',
+  'canvas.apply': '適用',
   'canvas.observedHint': '実際に見えている色を入力すると、円がその色で描画され、計算値との差も表示されます',
   'canvas.observedBadge': '目視',
   'canvas.computed': '計算値',

@@ -817,23 +817,44 @@
     });
 
     // 目視色：填了就改渲染圓圈；清空回到計算結果
-    $('#observed-hex').on('change', function () {
-      var v = String(this.value || '').trim();
+    function commitObserved() {
+      var v = String($('#observed-hex').val() || '').trim();
       if (!v) { state.observed = null; renderAll(); return; }
-      if (!Lib.isHex(v)) { toast(t('toast.badHex', { v: v }), 'red'); $('#observed-hex').val(state.observed || ''); return; }
+      if (!Lib.isHex(v)) {
+        toast(t('toast.badHex', { v: v }), 'red');
+        $('#observed-hex').val(state.observed || '');
+        return;
+      }
       state.observed = Lib.rgbToHex(Lib.hexToRgb(v));
       renderAll();
-    });
+    }
 
     // 自訂底色
-    $('#base-hex').on('change', function () {
-      var v = String(this.value || '').trim();
-      if (!Lib.isHex(v)) { toast(t('toast.badHex', { v: v }), 'red'); $('#base-hex').val(state.stack.base); return; }
+    function commitBase() {
+      var v = String($('#base-hex').val() || '').trim();
+      if (!Lib.isHex(v)) {
+        toast(t('toast.badHex', { v: v }), 'red');
+        $('#base-hex').val(state.stack.base);
+        return;
+      }
       state.stack = Lib.normalizeStack({ base: v, layers: state.stack.layers });
       state.substrate = null;      // 手動改底色＝不再宣稱是某個基材
       renderSubstrates();
       renderAll();
-    });
+    }
+
+    // ⚠️ `change` 與套用鍵走的是**同一個 commit 函式**，不是兩份實作（v1.16）。
+    //    套用鍵不是 change 的替代品，是它的**可見版本**——change 只在 Enter 或失焦時
+    //    發生，那件事在畫面上完全看不出來（填完直接去點別的東西的人會以為沒生效）。
+    //    ⚠️ 兩者會在同一次點擊裡都跑到：mousedown 讓 input 失焦 → change 先發 →
+    //       接著才是 click。這無害，因為 commit 讀的是**欄位當下的值**且結果一樣；
+    //       壞值的情形也只會出一次紅 toast（change 已把欄位還原成 state 的值，
+    //       第二次讀到的就是合法值、寫回同一個值）。**這是刻意可以重跑的，不要改成
+    //       「只在其中一條路上 commit」**——那會讓另一條路在某些瀏覽器上安靜地失效。
+    $('#observed-hex').on('change', commitObserved);
+    $('#observed-hex-apply').on('click', commitObserved);
+    $('#base-hex').on('change', commitBase);
+    $('#base-hex-apply').on('click', commitBase);
 
     // 目視微調
     $('#nudge-toggle').on('click', function () {

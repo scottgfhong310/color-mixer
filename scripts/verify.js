@@ -502,6 +502,45 @@ check('H4', '基材紙色未量測時，畫面一定要講出來', () => {
   return { ok: true, detail: `告示已接　現有 ${n} 個基材紙色未量測（這條不是空轉的）` };
 });
 
+check('H5', 'hex 欄位的套用鍵與 change 走同一個 commit，不是兩份實作', () => {
+  const html = read('index.html');
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const pairs = [['base-hex', 'commitBase'], ['observed-hex', 'commitObserved']];
+  pairs.forEach(([id, fn]) => {
+    if (!html.includes(`id="${id}-apply"`)) throw new Error(`index.html 少了 #${id}-apply`);
+    if (!new RegExp(`function ${fn}\\(`).test(js)) throw new Error(`控制器少了 ${fn}()`);
+    // ⚠️ 兩條路都必須綁**同一個** commit 函式。分別寫兩段等效邏輯是 v1.16 那條
+    //    「同一條規則不要有第二份實作」——而它的失效方式特別安靜：兩份會慢慢漂，
+    //    使用者按鍵與按 Enter 得到不同結果，而畫面上兩者長得一模一樣。
+    if (!new RegExp(`\\$\\('#${id}'\\)\\.on\\('change', ${fn}\\)`).test(js))
+      throw new Error(`#${id} 的 change 沒有綁 ${fn}`);
+    if (!new RegExp(`\\$\\('#${id}-apply'\\)\\.on\\('click', ${fn}\\)`).test(js))
+      throw new Error(`#${id}-apply 的 click 沒有綁 ${fn}`);
+  });
+  // 三語 title
+  const miss = [];
+  ['zh-Hant', 'en', 'ja'].forEach((lg) => {
+    if (!read(`locales/${lg}.js`).includes("'canvas.apply'")) miss.push(lg);
+  });
+  if (miss.length) throw new Error('缺 canvas.apply 文案：' + miss.join(', '));
+  // 版面：基材要比兩個 hex 欄寬（它的選項文字最長，實測會被切掉）
+  const css = read('color-mixer.css');
+  if (!/\.canvas-foot \.field:first-child\s*\{[^}]*flex:\s*3/.test(css))
+    throw new Error('基材欄沒有比較大的 flex 權重');
+  if (!/\.canvas-foot \.field\s*\{[^}]*min-width:\s*0/.test(css))
+    throw new Error('缺 min-width: 0——flex item 預設 min-width:auto，Materialize 的 select '
+      + '內容撐得比 flex-basis 寬時會溢出而不是被壓縮，「（紙色未量測）」的尾巴會被切掉');
+  // ⚠️ 本列最右邊是一顆**會做事的按鍵**，而側欄是 position:fixed 的覆蓋層。
+  //    實測 895px 視窗下套用鍵右緣 826 與 #setting-mode（818–864）重疊約 10px，
+  //    **點那 10px 會切換主題而不是套用顏色**——做錯事比點不到更糟，且畫面看不出來。
+  //    （中心點打得到不代表安全：沿寬度取七點才看得到右邊三點被搶走。）
+  if (!/\.canvas-foot\s*\{[^}]*padding-right:\s*calc\(var\(--tool-size/.test(css))
+    throw new Error('.canvas-foot 沒有讓出側欄寬度——最右邊那顆套用鍵會被 #setting-mode 蓋住，'
+      + '點下去會切換主題而不是套用顏色');
+  return { ok: true, detail: '兩個套用鍵各與自己的 change 共用同一個 commit　'
+    + '基材欄 flex:3 ＋ min-width:0　本列讓出側欄寬度' };
+});
+
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {
   const bad = ['', '?', 'garbage', 'b=zzzzzz', 'm=km', '?m=nope&b=', 'l=abc'];
   const wrong = bad.filter((s) => L.decodeState(s) !== null);

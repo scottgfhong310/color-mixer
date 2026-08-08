@@ -98,8 +98,41 @@ body {
 .result-rgb { font-size: .78rem; opacity: .82;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
-.canvas-foot { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
-.canvas-foot .field { flex: 1 1 180px; }
+/* ⚠️ `padding-right` 是必要的，不是留白：側欄是 `position: fixed` 的覆蓋層，
+   而本列最右邊現在是一顆**會做事的按鍵**。實測 895px 視窗下，目視色的套用鍵
+   （右緣 826）與 `#setting-mode`（818–864）重疊約 10px——**點那 10px 會切換主題
+   而不是套用顏色**。做錯事比點不到更糟，而且畫面上完全看不出來。
+   ⚠️ **中心點打得到不代表安全**：`elementFromPoint` 取中心時回的是按鍵本身，
+      沿寬度取七點才看得到右邊三點被 `#setting-mode` 搶走。
+   ⚠️ 刻意**不改 `.app-container`**——它的 `width: 93%` 與側欄重疊是家族 28 支共用的
+      版面（實算：容器右緣 0.965·W vs 側鍵左緣 W−73，到 1426px 才不交叉），
+      其餘面板沒有靠右的互動元素所以無害。為這一顆鍵去動共用版面，會讓本 app
+      與家族其他成員長得不一樣。 */
+.canvas-foot {
+  display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap;
+  padding-right: calc(var(--tool-size, 46px) + 14px);
+}
+/* 三欄不等寬：基材的選項文字最長（品牌名＋「（紙色未量測）」那段標記），
+   兩個 hex 欄位的內容恆為 7 個等寬字元、給多了也是空白。
+   ⚠️ 基材要 `min-width: 0` 才收得住——flex item 的預設 min-width 是 auto，
+      Materialize 的 select 是靠 <input readonly> 呈現的，內容撐得比 flex-basis 寬時
+      **會溢出而不是被壓縮**，於是「（紙色未量測）」的尾巴被切掉。 */
+.canvas-foot .field { min-width: 0; }
+.canvas-foot .field:first-child { flex: 3 1 300px; }
+.canvas-foot .field-hex { flex: 1 1 160px; }
+
+/* hex 欄位 ＋ 套用鍵。⚠️ 套用鍵**不是** change 的替代品，是它的可見版本
+   （change 只在 Enter／失焦時發生，那件事畫面上看不出來）。 */
+.hex-row { display: flex; align-items: center; gap: 4px; }
+.hex-row input { flex: 1 1 auto; min-width: 0; }
+.hex-apply {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+}
+.hex-apply:hover { color: var(--text); border-color: var(--text); }
+.hex-apply i { font-size: 18px; line-height: 1; }
 .field-label { display: block; font-size: .74rem; color: var(--muted); margin-bottom: 2px; }
 .field-hex input {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
