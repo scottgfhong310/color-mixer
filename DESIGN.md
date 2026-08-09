@@ -366,24 +366,37 @@ CHG000050 拿掉它（同三欄改建一般索引），因為**同一個框架�
 
 ## 6. 尚未做的事
 
-- **canvas 筆刷塗抹**（階段二）。刻意排在色塊疊加之後：筆刷是 DOM 工作、進不了 lib（§4.1／§4.7），
+> ⚠️ **這一節逐項實查於 2026-08-09。** 原本八項裡有七項早已完成而清單沒跟上——
+> 那是家族 v1.15 補記三記過的「清單落後實作」，而且**結轉的動作本身看起來像確認**。
+> 判準：**列一條待辦之前先查它還開著沒有，查不動就別列。**
+
+- **canvas 筆刷塗抹**（階段二）——**唯一還開著的一項**（實查：控制器內 0 處筆刷程式碼）。
+  刻意排在色塊疊加之後：筆刷是 DOM 工作、進不了 lib（§4.1／§4.7），
   而它消費的正是階段一算出來的結果色，**lib 一行都不用改**。反過來做會讓合成邏輯長在繪圖迴圈裡，
   於是「畫面看到的顏色」與「複製出去的 hex」變成兩條路徑——正是 §4.1 要避免的那件事。
-- **校準的正式資料模型**進 `ARTCOLOR_DOMAIN_GOVERNANCE.md`（新的 §3.x），含第三類來源
-  `measured` 的定位。現在 `data/calibration.js` 是**佔位資料**，`CM_CALIBRATION_META.stub`
-  為 true 時畫面掛告示（`verify.js` F3 條擋著它不准被拿掉）。
-- **`color-metric.js` 共用件**：五支品牌 lib ＋ 本支的色彩科學核心逐字相同、共六份複製。
-  抽出來是對的（比照 v1.18 的 `color-family.js`），但那是一次跨 6 個 repo 的收斂，
-  **刻意不混進第一版**（v1.17／v1.18 記過兩次「commit 訊息與內容對不起來」）。
-- ~~**icons/ 與 favicon set**~~ **已完成**（2026-08-08）：`scripts/make-icons.py` 產整套，
+
+### 已完成（保留紀錄，因為它們各自留下了判準）
+
+- ~~**校準的正式資料模型**~~ 2026-08-08 進 `ARTCOLOR_DOMAIN_GOVERNANCE.md` **§3.5**
+  （CHG000049），含第三類來源 `measured` 與方法 `visual-match`。
+  隔天 CHG000050 又**拿掉了它的唯一約束**——目視值取決於光線／螢幕／觀察者，
+  「一組（筆, 基材, 層數）有唯一真值」這句斷言不成立（見 §2 與該 SQL 的檔頭）。
+  `data/calibration.js` 自 2026-08-08 起是 `db_artcolor` 的匯出產物，`stub` 為 false；
+  stub 那條路徑與 `verify.js` F3 保留，下次真的要放佔位資料時還會用到。
+- ~~**`color-metric.js` 共用件**~~ 2026-08-08 抽出（權威版在家族 repo 根，17 個複製點）。
+  ⚠️ 抽出時實查發現「六份逐字相同」**當時已經不成立**——四個函式分兩派，其中 `hexToRgb`
+  是真的行為差異（一派壞輸入回 null、一派永不回 null）。統一為嚴格版，順帶修好了
+  `color-palette`／`thangka-trace` 裡 10 個守衛只有 4 個有效的既有 bug。
+- ~~**icons/ 與 favicon set**~~ 2026-08-08：`scripts/make-icons.py` 產整套，
   `.ico` 走家族 `tools/make-ico.sh`（**不可 `cp`**）。標記是**兩片色重疊、交集是減色的結果**
   ——與另五支色彩 app 區隔：那些描述「一批色」，本 app 描述「兩色相遇會怎樣」。
-  ⚠️ **重疊色不寫死，由本 app 的 lib 現算**（比照 `copic-color` 的 make-icons.py「九格由資料現查」）：
-  模型改了 icon 跟著改，`verify.js` F10 條第 ⑤ 項比對兩者是否仍相同。
+  ⚠️ **重疊色不寫死，由本 app 的 lib 現算**（比照 `copic-color` 的「九格由資料現查」）：
+  模型改了 icon 跟著改，`verify.js` F10 第 ⑤ 項比對兩者是否仍相同。
   ⚠️ **交集是畫上去的第三個形狀，不是用 `fill-opacity` 疊的**——瀏覽器的 alpha 合成給的是
   灰橄欖 `#8f9866`，減色才給得出綠 `#3d7833`；用 opacity 疊等於這枚 icon 在反駁自己。
-- 發佈（`gh repo create`）、家族 README 成員表、`app-launcher` registry、i18n 盤點匯入。
+- ~~**發佈與家族登錄**~~ 全部完成（逐項實查）：`gh repo create` public ✔／
+  家族 README 成員表 ✔（2026-08-09 順帶修掉該表五處過期敘述，並補上
+  `tools/test-readme-counts.js` 收卷）／`app-launcher` registry ✔（`apps.js` 第 281 列）／
+  **i18n 盤點匯入 ✔**（2026-08-09，130 列進 `db_inprogress.meta_i18n`；
+  `--check` 0/0/0、`--report` 的「① 待收斂」維持 **0**）。
 
----
-
-*MIT © 2026 Scott G.F. Hong*

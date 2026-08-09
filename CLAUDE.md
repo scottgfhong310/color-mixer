@@ -100,9 +100,13 @@ InProgress 鏡像），所以上游改版時會主動推過來，不必靠這裡
 
 ## 尚未做的事
 
-見 [DESIGN.md §6](DESIGN.md)：canvas 筆刷（階段二）、校準的正式資料模型進治理文件、
-`color-metric.js` 共用件抽出、`icons/` 與 favicon set、發佈與家族登錄
-（README 成員表／`app-launcher` registry／i18n 盤點匯入）。
+見 [DESIGN.md §6](DESIGN.md)——**逐項實查於 2026-08-09，只剩一項**：
+**canvas 筆刷（階段二）**。其餘七項（校準資料模型進治理文件／`color-metric.js` 抽出／
+`icons/` 與 favicon set／發佈／README 成員表／`app-launcher` registry／i18n 盤點匯入）
+都已完成，各自的判準留在 §6。
+
+⚠️ 那七項**早就做完而清單沒跟上**——同 v1.15 補記三的「清單落後實作」，
+而**結轉的動作本身看起來像確認**。判準：**列一條待辦之前先查它還開著沒有。**
 
 **`data/calibration.js` 自 2026-08-08 起是 `db_artcolor` 的匯出產物、不再是佔位資料**
 （`CM_CALIBRATION_META.stub` 現為 false；stub 那條路徑與 `verify.js` F3 保留，
