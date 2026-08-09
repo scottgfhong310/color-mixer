@@ -13,6 +13,7 @@
 
 本プロジェクトは **nodeapp WebApp ファミリー**の一員です。共通規約とワークフローは
 <https://github.com/scottgfhong310/nodeapp-webapp-family>（`DESIGN_GUIDELINES.md`、`WORKFLOW.md`）。
+このアプリがなぜ存在し、構想がどこから来たのかは [CONCEPT.md](CONCEPT.md)。
 なぜこの形なのかは [DESIGN.md](DESIGN.md)。
 
 > ⚠️ **開発中。** 現在同梱されている校正データは**プレースホルダーであり実測値ではありません**。

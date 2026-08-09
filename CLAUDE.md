@@ -5,6 +5,7 @@
 Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色 → 跨五品牌找最接近的筆，
 並顯示該色的**應用校準**紀錄（同一支筆在不同紙上實際是什麼顏色）。
 
+- **為什麼有這支 app** → [CONCEPT.md](CONCEPT.md)（緣起、界線、未來方向）
 - **怎麼用** → [README.md](README.md)（三語）
 - **為什麼長這樣** → [DESIGN.md](DESIGN.md) ← **動手前先讀，尤其 §3（四個混色模型）與 §5（三個坑）**
 - **家族共同規範** → <https://github.com/scottgfhong310/nodeapp-webapp-family>

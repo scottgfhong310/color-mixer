@@ -12,6 +12,7 @@
 
 本專案為 **nodeapp WebApp 家族**成員，共同規範與流程見
 <https://github.com/scottgfhong310/nodeapp-webapp-family>（`DESIGN_GUIDELINES.md`、`WORKFLOW.md`）。
+這支 app 為什麼存在、構想從哪來？見 [CONCEPT.md](CONCEPT.md)。
 為什麼長這樣：[DESIGN.md](DESIGN.md)。
 
 > ⚠️ **開發中。** 目前隨附的校準資料是**佔位值，不是實測**。是佔位資料時畫面上會有一條告示。

@@ -14,6 +14,7 @@ looking at.
 
 Part of the **nodeapp WebApp family** — shared conventions and workflow live at
 <https://github.com/scottgfhong310/nodeapp-webapp-family> (`DESIGN_GUIDELINES.md`, `WORKFLOW.md`).
+Why does this app exist, and where did the idea come from? See [CONCEPT.md](CONCEPT.md).
 Why it is built this way: [DESIGN.md](DESIGN.md).
 
 > ⚠️ **Work in progress.** The calibration data shipped here is a **placeholder, not measured**.
