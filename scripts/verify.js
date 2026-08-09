@@ -580,6 +580,86 @@ check('H6', '兩個主題下，選中 chip 的字色都要過 WCAG AA（實算�
   return { ok: true, detail: out.join('　') };
 });
 
+check('I1', '筆刷的第一筆恆等於圓圈的結果色（整個心智模型靠這條）', () => {
+  // 「一筆 ＝ 圓圈那個顏色」是使用者唯一需要記住的事。它一旦不成立，
+  // 畫布與讀數就變成兩套說法，而畫面上看不出來。
+  const stacks = [
+    { base: '#ffffff', layers: [{ hex: '#255da7', alpha: 0.6 }] },
+    { base: '#f0e6d2', layers: [{ hex: '#08093d', alpha: 0.35 }, { hex: '#e8c33a', alpha: 0.5 }] },
+  ];
+  const bad = [];
+  stacks.forEach((st) => L.MODELS.forEach((m) => {
+    const t = L.paintTable(st, m, 12);
+    if (t[0] !== L.normalizeStack(st).base) bad.push(`${m}: t[0] 不是底色`);
+    if (t[1] !== L.compose(st, m).hex) bad.push(`${m}: t[1]=${t[1]} ≠ compose=${L.compose(st, m).hex}`);
+  }));
+  if (bad.length) throw new Error(bad.join('；'));
+  // 而且重疊要真的會加深——否則這條可能是「表全都一樣」的空轉
+  const t = L.paintTable(stacks[0], 'glaze', 12);
+  if (dE(t[1], t[2]) < 1) throw new Error('兩筆與一筆幾乎相同，重疊沒有加深');
+  return { ok: true, detail: `2 種堆疊 × 4 模型 t[0]/t[1] 全對　glaze 一筆→兩筆 ΔE00 ${dE(t[1], t[2]).toFixed(2)}` };
+});
+
+check('I2', '繪圖迴圈不做合成——顏色一律來自 paintTable', () => {
+  // ⚠️ 這條擋的是最誘人的那條捷徑：用 canvas 的 `globalAlpha` 疊。
+  //    那是瀏覽器的 alpha 合成＝**永遠只有 srgb 一個模型**，而畫面上還寫著「罩染」。
+  //    它不報錯、不當機，只會讓四個模型看起來一模一樣。
+  const js = read('color-mixer.js');
+  const clean = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  if (/globalAlpha|globalCompositeOperation/.test(clean))
+    throw new Error('控制器用了 canvas 的合成（globalAlpha/globalCompositeOperation）'
+      + '——那等於永遠只有 srgb，四個模型會看起來一樣');
+  if (!/Lib\.paintTable\(/.test(clean)) throw new Error('控制器沒有呼叫 Lib.paintTable()');
+  // 筆刷那一段不可以自己算混色：只准查表
+  const seg = clean.slice(clean.indexOf('function brushRepaint'), clean.indexOf('function renderAll'));
+  if (!seg) throw new Error('找不到筆刷那一段');
+  if (/Lib\.over\(|Lib\.compose\(/.test(seg))
+    throw new Error('筆刷段自己在做合成（Lib.over／Lib.compose）——合成只准發生在 paintTable 裡');
+  return { ok: true, detail: '無 globalAlpha　筆刷段只查表不合成' };
+});
+
+check('I3', '筆刷：markup ↔ handler ＋ 三語齊全', () => {
+  const html = read('index.html');
+  const js = read('color-mixer.js');
+  const ids = ['paint', 'brush-toggle', 'brush-ctl', 'brush-size', 'brush-size-n',
+    'brush-erase', 'brush-clear', 'brush-note'];
+  // ⚠️ 兩種取用寫法都算數：jQuery 的 `#id` 與原生的 `getElementById('id')`。
+  //    第一版只認 `#id`，於是 `#paint`（控制器用 getElementById，因為要拿原生 canvas）
+  //    被判成「沒人接」——**檢查太窄造成的假陽性，不是程式的問題**。
+  const wired = (id) => js.includes(`#${id}`) || js.includes(`getElementById('${id}')`);
+  const orphan = ids.filter((id) => !html.includes(`id="${id}"`) || !wired(id));
+  if (orphan.length) throw new Error('markup 與 handler 對不上：' + orphan.join(', '));
+  // 畫布預設不可吃事件——否則它蓋住整個基材，圓圈的互動全沒了而畫面看起來正常
+  const css = read('color-mixer.css');
+  if (!/\.paint\s*\{[^}]*pointer-events:\s*none/.test(css))
+    throw new Error('.paint 沒有 pointer-events: none——它會吃掉整個基材的互動');
+  if (!/\.canvas\.brush-on \.paint\s*\{[^}]*pointer-events:\s*auto/.test(css))
+    throw new Error('塗抹模式沒有打開 .paint 的 pointer-events');
+  const need = ['brush.on', 'brush.off', 'brush.size', 'brush.erase', 'brush.clear', 'brush.note'];
+  const miss = [];
+  ['zh-Hant', 'en', 'ja'].forEach((lg) => {
+    const src = read(`locales/${lg}.js`);
+    need.forEach((k) => { if (!src.includes(`'${k}'`)) miss.push(`${lg}:${k}`); });
+  });
+  if (miss.length) throw new Error('缺三語文案：' + miss.join(', '));
+  return { ok: true, detail: `${ids.length} 個 id 有人接　${need.length} key × 3 語 = ${need.length * 3} 個都在` };
+});
+
+check('I4', '塗出來的東西不是 state——不進網址，也不影響四個出口', () => {
+  // 網址存的是配方（可分享、可重現），塗鴉是一塊試色布。
+  // 這條同時保住 §4.1：圓圈／CSS／分享連結／最接近色，一個都不看那塊畫布。
+  const qs = L.encodeState({ model: 'glaze', stack: { base: '#ffffff', layers: [] } });
+  if (/paint|brush|coat|stroke/.test(qs)) throw new Error('網址裡出現了筆刷資料：' + qs);
+  const js = read('color-mixer.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const push = js.slice(js.indexOf('function pushUrl'), js.indexOf('function readUrl'));
+  if (/brush/.test(push)) throw new Error('pushUrl 讀了 brush 狀態');
+  // renderAll 必須重畫筆刷——否則「換了模型，已塗的筆觸沒變」，不報錯只是安靜過期
+  const ra = js.slice(js.indexOf('function renderAll'), js.indexOf('function renderAll') + 700);
+  if (!/brushRepaint\(\)/.test(ra))
+    throw new Error('renderAll 沒有呼叫 brushRepaint()——換模型後已塗的筆觸會停在舊顏色');
+  return { ok: true, detail: '網址不含筆刷資料　pushUrl 不讀 brush　renderAll 會重畫' };
+});
+
 check('C2', 'decodeState 對壞輸入回 null，不丟例外、不猜', () => {
   const bad = ['', '?', 'garbage', 'b=zzzzzz', 'm=km', '?m=nope&b=', 'l=abc'];
   const wrong = bad.filter((s) => L.decodeState(s) !== null);

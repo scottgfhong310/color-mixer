@@ -10,6 +10,14 @@ I18n.register('en', {
   'canvas.baseHex': 'Custom base',
   'canvas.observed': 'Observed (what I see)',
   'canvas.apply': 'Apply',
+
+  /* ---- brush (stage two) ---- */
+  'brush.on': 'Start painting',
+  'brush.off': 'Stop painting',
+  'brush.size': 'Brush size',
+  'brush.erase': 'Eraser',
+  'brush.clear': 'Clear',
+  'brush.note': 'One stroke = the disc colour ({one}); overlaps build up under "{model}": two strokes {two}, saturated {full}.',
   'canvas.observedHint': 'Type the colour you actually see; the disc renders it and reports the gap from the computed value',
   'canvas.observedBadge': 'observed',
   'canvas.computed': 'computed',

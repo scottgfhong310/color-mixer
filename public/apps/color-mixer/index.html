@@ -82,7 +82,14 @@
             外圈與圓內會一起變，而 `罩染` 與 `調色盤混合` 對紙色的反應不同
             （見 color-mixer-lib.js 檔頭那張實測表），這個版面把它直接畫出來。
           -->
-          <div id="canvas" class="canvas" role="img" data-i18n-title="canvas.aria" title="基材與疊加區">
+          <!--
+        筆刷畫布（階段二）。⚠️ 它**不做合成**——只把「這個像素被塗過幾次」記在一個整數
+        緩衝區裡，顏色由 `Lib.paintTable()` 預先算好、繪圖時查表（DESIGN §4.1／§6）。
+        ⚠️ **不可以改用 canvas 的 `globalAlpha` 疊**：那是瀏覽器的 alpha 合成＝永遠只有
+           `srgb` 一個模型，而畫面上還寫著現在選的是「罩染」。不報錯，只是四個模型看起來一樣。
+      -->
+      <div id="canvas" class="canvas" role="img" data-i18n-title="canvas.aria" title="基材與疊加區">
+            <canvas id="paint" class="paint" aria-hidden="true"></canvas>
             <div id="mix-disc" class="mix-disc">
               <span id="disc-badge" class="disc-badge" style="display:none" data-i18n="canvas.observedBadge">目視</span>
               <div class="canvas-readout">
@@ -90,6 +97,26 @@
                 <div id="result-rgb" class="result-rgb">rgb(255, 255, 255)</div>
                 <div id="disc-compare" class="disc-compare" style="display:none"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- 筆刷（階段二）。收在畫布下方一列，關掉時整列讓位。 -->
+          <div class="brush-bar">
+            <button id="brush-toggle" class="btn-flat tiny" type="button">
+              <i class="material-icons left">brush</i><span data-i18n="brush.on">開始塗抹</span>
+            </button>
+            <div id="brush-ctl" class="brush-ctl" style="display:none">
+              <label class="field-label" for="brush-size" data-i18n="brush.size">筆刷大小</label>
+              <input id="brush-size" type="range" min="4" max="64" step="2" value="22" />
+              <span id="brush-size-n" class="pct">22</span>
+              <button id="brush-erase" class="btn-flat tiny" type="button"
+                      data-i18n-title="brush.erase" title="橡皮擦">
+                <i class="material-icons">auto_fix_normal</i>
+              </button>
+              <button id="brush-clear" class="btn-flat tiny" type="button">
+                <i class="material-icons left">layers_clear</i><span data-i18n="brush.clear">清除</span>
+              </button>
+              <span id="brush-note" class="pool-note"></span>
             </div>
           </div>
 

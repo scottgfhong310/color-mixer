@@ -10,6 +10,14 @@ I18n.register('zh-Hant', {
   'canvas.baseHex': '自訂底色',
   'canvas.observed': '目視色（我看到的）',
   'canvas.apply': '套用',
+
+  /* ---- 筆刷（階段二） ---- */
+  'brush.on': '開始塗抹',
+  'brush.off': '結束塗抹',
+  'brush.size': '筆刷大小',
+  'brush.erase': '橡皮擦',
+  'brush.clear': '清除',
+  'brush.note': '一筆 ＝ 圓圈那個色（{one}）；重疊處依「{model}」加深：兩筆 {two}、疊滿 {full}。',
   'canvas.observedHint': '填你實際看到的顏色；圓圈會改用它渲染，並印出與計算值的差距',
   'canvas.observedBadge': '目視',
   'canvas.computed': '計算值',

@@ -1,6 +1,6 @@
 # color-mixer — Session 起手 context
 
-> 版本 v0.2｜最後更新 2026-08-08
+> 版本 v0.3｜最後更新 2026-08-09
 
 Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色 → 跨五品牌找最接近的筆，
 並顯示該色的**應用校準**紀錄（同一支筆在不同紙上實際是什麼顏色）。
@@ -14,7 +14,7 @@ Art Color 家族的調色台：基材底色 ＋ 半透明顏料層 → 結果色
 
 ```bash
 npm install && npm start          # → http://localhost:3000/apps/color-mixer/
-npm run verify                    # 39 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
+npm run verify                    # 46 條契約檢查（全過 0 / 不符 1 / 旗標打錯 2）
 node scripts/verify.js --selftest # 反向驗證：故意改壞，確認每條抓得到
 bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 18 個借來的檔
 ```
@@ -54,6 +54,14 @@ bash scripts/sync-copies.sh       # 回灌 InProgress 鏡像 ＋ 驗 18 個借�
 ⚠️ **改到 `state.useCalib`／`substrate`／`model`／`solve*` 的 handler 一律 `renderAll()`。**
 `#use-calib` 原本只呼叫 `renderNear()`（當年正確），反解上線後症狀是**勾了沒反應**——
 不報錯，只是安靜地繼續用型錄色。`verify.js` G7 擋著這一整類。
+
+## ⚠️ 筆刷的一條紀律
+
+**繪圖迴圈不做合成。** 控制器只維護「這個像素被塗過幾次」的整數緩衝區，顏色查
+`Lib.paintTable()`；合成永遠只發生在那支裡、用的是同一個 `compose`。
+⚠️ **不可以改用 canvas 的 `globalAlpha` 疊**——那是瀏覽器的 alpha 合成＝**永遠只有 `srgb`**，
+而畫面上還寫著現在選的是「罩染」。不報錯，只會讓四個模型看起來一模一樣。
+`verify.js` I2 明文擋這個字，I1 擋「一筆 ＝ 圓圈那個色」，I4 擋「塗鴉不是 state」。
 
 ## ⚠️ 校準值的三條紀律（目視值取決於光線／螢幕／觀察者）
 
@@ -100,10 +108,8 @@ InProgress 鏡像），所以上游改版時會主動推過來，不必靠這裡
 
 ## 尚未做的事
 
-見 [DESIGN.md §6](DESIGN.md)——**逐項實查於 2026-08-09，只剩一項**：
-**canvas 筆刷（階段二）**。其餘七項（校準資料模型進治理文件／`color-metric.js` 抽出／
-`icons/` 與 favicon set／發佈／README 成員表／`app-launcher` registry／i18n 盤點匯入）
-都已完成，各自的判準留在 §6。
+見 [DESIGN.md §6](DESIGN.md)——**清單目前是空的**（2026-08-09 逐項實查，
+最後一項 canvas 筆刷同日完成，見 §4.8）。八項的判準都留在 §6／§4.8。
 
 ⚠️ 那七項**早就做完而清單沒跟上**——同 v1.15 補記三的「清單落後實作」，
 而**結轉的動作本身看起來像確認**。判準：**列一條待辦之前先查它還開著沒有。**

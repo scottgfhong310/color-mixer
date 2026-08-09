@@ -76,7 +76,34 @@ body {
   border-radius: 10px; border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
   transition: background .18s;
+  position: relative; overflow: hidden;     /* 筆刷畫布靠這兩條貼齊並被圓角裁切 */
 }
+
+/* ---- 筆刷（階段二） ----
+   ⚠️ `pointer-events: none` 是預設值，只有塗抹模式才打開——否則筆刷畫布會蓋在整個
+      基材上，把圓圈的 hover／點擊全部吃掉，而畫面看起來完全正常。 */
+.paint {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; touch-action: none;
+}
+.canvas.brush-on .paint { pointer-events: auto; cursor: crosshair; }
+/* 塗抹時圓圈縮到左上角當色片——它擋在正中央就沒得畫了，但**不能整個藏起來**：
+   那是「現在這一筆是什麼顏色」的唯一憑據。 */
+.canvas.brush-on .mix-disc {
+  position: absolute; top: 10px; left: 10px;
+  height: 74px; width: 74px;
+  font-size: .62rem; z-index: 2;
+}
+.canvas.brush-on .mix-disc .result-hex { font-size: .68rem; }
+.canvas.brush-on .mix-disc .result-rgb,
+.canvas.brush-on .mix-disc .disc-compare,
+.canvas.brush-on .mix-disc .disc-badge { display: none !important; }
+
+.brush-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.brush-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brush-ctl .field-label { margin-bottom: 0; }
+.brush-ctl input[type=range] { width: 120px; }
+.brush-ctl .btn-flat.tiny.active { color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; }
 
 /* 疊加區：邊長取畫布**高度**的 62% ＋ `aspect-ratio:1`，所以無論畫布多寬都是正圓
  * （用 % 寬度會隨欄寬變成橢圓）。 */

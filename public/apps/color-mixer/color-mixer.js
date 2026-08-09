@@ -574,6 +574,130 @@
     $('#solve-note').html(note);
   }
 
+  // ---- 筆刷（階段二）-----------------------------------------------------
+  //
+  // ⚠️ **這一段不做任何合成。** 它只維護 `brush.count`：一個「這個像素被塗過幾次」的
+  //    整數緩衝區。顏色一律來自 `Lib.paintTable()`（DESIGN §4.1／§6）。於是換模型、
+  //    換基材、改顏料層時**同一批筆觸立刻改頭換面**——模型差異在重疊處直接看得見。
+  // ⚠️ **不可以改用 canvas 的 `globalAlpha` 疊**：那是瀏覽器的 alpha 合成，
+  //    等於永遠只有 `srgb` 一個模型，而畫面上還寫著現在選的是「罩染」。不會報錯。
+  // ⚠️ **塗出來的東西不是 state，不進網址。** 網址存的是配方（可分享、可重現），
+  //    塗鴉是一塊試色布。所以「畫面與輸出不一致」仍然不可能——圓圈／CSS／分享連結／
+  //    最接近色四個出口，一個都不看這塊畫布。
+
+  var MAX_COATS = 12;              // 實測 5–6 筆後逐筆 ΔE00 < 0.5，12 綽綽有餘
+  var brush = {
+    on: false, size: 22, erasing: false,
+    w: 0, h: 0, dpr: 1,
+    count: null,                   // Uint8Array，每個像素塗過幾次
+    stroke: null,                  // 本筆已經碰過的像素（同一筆不重複加）
+    img: null, ctx: null, last: null
+  };
+
+  function brushCanvas() { return document.getElementById('paint'); }
+
+  /** 依畫布實際尺寸配置緩衝區。**已塗的內容按比例保留**——重設大小不該把畫清掉。 */
+  function brushResize() {
+    var el = brushCanvas();
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    // ⚠️ preview pane 在背景時 getBoundingClientRect 會是 0（家族 v1.17 那五種假象之一）。
+    //    配置一個 0×0 的緩衝區會讓後面每一次塗抹都靜默失敗，故直接不動。
+    if (r.width < 2 || r.height < 2) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (w === brush.w && h === brush.h && brush.count) return;
+
+    var old = brush.count, ow = brush.w, oh = brush.h;
+    brush.w = w; brush.h = h; brush.dpr = dpr;
+    el.width = w; el.height = h;
+    brush.ctx = el.getContext('2d');
+    brush.count = new Uint8Array(w * h);
+    brush.img = brush.ctx.createImageData(w, h);
+    if (old && ow && oh) {                       // 等比搬過來，不清畫
+      for (var y = 0; y < h; y++) {
+        var sy = Math.floor(y * oh / h) * ow;
+        for (var x = 0; x < w; x++) brush.count[y * w + x] = old[sy + Math.floor(x * ow / w)];
+      }
+    }
+    brushRepaint();
+  }
+
+  /** 把整張 count 依現在的顏色表重畫。換模型／基材／顏料層時呼叫。 */
+  function brushRepaint() {
+    if (!brush.ctx || !brush.count) return;
+    var table = Lib.paintTable(state.stack, state.model, MAX_COATS);
+    var rgb = table.map(function (h) { var c = Lib.hexToRgb(h); return [c.r, c.g, c.b]; });
+    var d = brush.img.data, n = brush.count.length;
+    for (var i = 0; i < n; i++) {
+      var k = brush.count[i];
+      if (!k) { d[i * 4 + 3] = 0; continue; }    // 沒塗過＝透明，讓底下的基材色透出來
+      var c = rgb[k < rgb.length ? k : rgb.length - 1];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    brush.ctx.putImageData(brush.img, 0, 0);
+  }
+
+  /** 蓋一個圓形筆觸。**同一筆之內同一個像素只加一次**，否則慢慢拖就會越拖越深。 */
+  function brushStamp(cx, cy) {
+    if (!brush.count) return;
+    var r = brush.size * brush.dpr / 2, r2 = r * r;
+    var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(brush.w - 1, Math.ceil(cx + r));
+    var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(brush.h - 1, Math.ceil(cy + r));
+    var table = Lib.paintTable(state.stack, state.model, MAX_COATS);
+    var d = brush.img.data;
+    for (var y = y0; y <= y1; y++) {
+      for (var x = x0; x <= x1; x++) {
+        var dx = x - cx, dy = y - cy;
+        if (dx * dx + dy * dy > r2) continue;
+        var i = y * brush.w + x;
+        if (brush.erasing) { brush.count[i] = 0; brush.stroke[i] = 1; }
+        else {
+          if (brush.stroke[i]) continue;         // 本筆已經碰過
+          brush.stroke[i] = 1;
+          if (brush.count[i] < MAX_COATS) brush.count[i]++;
+        }
+        var k = brush.count[i];
+        if (!k) { d[i * 4 + 3] = 0; continue; }
+        var c = Lib.hexToRgb(table[k]);
+        d[i * 4] = c.r; d[i * 4 + 1] = c.g; d[i * 4 + 2] = c.b; d[i * 4 + 3] = 255;
+      }
+    }
+    brush.ctx.putImageData(brush.img, 0, 0);
+  }
+
+  /** 兩個 pointer 事件之間補點，否則拖快了會斷成一串圓點。 */
+  function brushLine(a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1];
+    var steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (brush.size * brush.dpr / 4)));
+    for (var i = 1; i <= steps; i++) brushStamp(a[0] + dx * i / steps, a[1] + dy * i / steps);
+  }
+
+  function brushPos(ev) {
+    var r = brushCanvas().getBoundingClientRect();
+    return [(ev.clientX - r.left) * brush.dpr, (ev.clientY - r.top) * brush.dpr];
+  }
+
+  function brushClear() {
+    if (brush.count) brush.count.fill(0);
+    brushRepaint();
+    renderBrush();
+  }
+
+  function renderBrush() {
+    $('#canvas').toggleClass('brush-on', brush.on);
+    $('#brush-ctl').toggle(brush.on);
+    $('#brush-toggle').find('span').text(t(brush.on ? 'brush.off' : 'brush.on'));
+    $('#brush-erase').toggleClass('active', brush.erasing);
+    $('#brush-size-n').text(brush.size);
+    if (!brush.on) { $('#brush-note').text(''); return; }
+    // 這一行是筆刷的整個重點：講出「一筆＝圓圈那個色、重疊會依現在這個模型加深」。
+    var table = Lib.paintTable(state.stack, state.model, MAX_COATS);
+    $('#brush-note').text(t('brush.note', {
+      model: t('model.' + state.model), one: table[1], two: table[2], full: table[MAX_COATS]
+    }));
+  }
+
   function renderAll() {
     renderCanvas();
     renderNudge();
@@ -582,6 +706,11 @@
     renderSolve();
     renderBrandChips();
     renderNear();
+    // ⚠️ 筆刷的顏色**完全由 state 決定**，所以它跟其他出口一樣要在這裡重算。
+    //    漏掉的症狀是「換了模型，畫布上已經塗的筆觸沒跟著變」——不報錯，只是安靜地過期
+    //    （同 #use-calib 那次，verify.js G7 記著那一整類）。
+    brushRepaint();
+    renderBrush();
     pushUrl();
   }
 
@@ -886,6 +1015,45 @@
       state.nudgeClipped = { k: ax, want: want, got: got ? (got[ax] || 0) : want };
       renderAll();
     });
+
+    // 筆刷（階段二）
+    $('#brush-toggle').on('click', function () {
+      brush.on = !brush.on;
+      if (brush.on) brushResize();     // 開的時候才量尺寸——關著時 getBoundingClientRect 是 0
+      renderBrush();
+    });
+    $('#brush-erase').on('click', function () { brush.erasing = !brush.erasing; renderBrush(); });
+    $('#brush-clear').on('click', brushClear);
+    $('#brush-size').on('input', function () {
+      brush.size = +this.value;
+      $('#brush-size-n').text(brush.size);   // 拖曳中只更新數字，不整頁重繪
+    });
+
+    var pc = brushCanvas();
+    if (pc) {
+      pc.addEventListener('pointerdown', function (ev) {
+        if (!brush.on) return;
+        brushResize();
+        pc.setPointerCapture(ev.pointerId);   // 拖出畫布外仍收得到 move／up
+        brush.stroke = new Uint8Array(brush.w * brush.h);
+        brush.last = brushPos(ev);
+        brushStamp(brush.last[0], brush.last[1]);
+        ev.preventDefault();
+      });
+      pc.addEventListener('pointermove', function (ev) {
+        if (!brush.on || !brush.last) return;
+        var p = brushPos(ev);
+        brushLine(brush.last, p);
+        brush.last = p;
+      });
+      // ⚠️ `pointerup` 之外還要收 `pointercancel`：拖到一半被系統打斷（切視窗、
+      //    觸控被捲動接管）只綁 up 會讓 brush.last 卡住，下一次按下去會從舊座標拉一條線過來。
+      ['pointerup', 'pointercancel'].forEach(function (e) {
+        pc.addEventListener(e, function () { brush.last = null; brush.stroke = null; });
+      });
+    }
+    // 版面變了要重新配置緩衝區（等比保留已塗的內容）
+    window.addEventListener('resize', function () { if (brush.on) brushResize(); });
 
     // 反解（拆色）
     $('#solve-target').on('change', function () {

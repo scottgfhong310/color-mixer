@@ -108,6 +108,9 @@
  *       凸組合」，故這是凸問題——有唯一最佳解，而且**到不了時能證明到不了**。
  *       ⚠️ `reachable` 為 false 時 `dE` 就是**做不到的下限**，不是暫時沒調好。
  *   PALETTES（rgb／cmy／cmyk）· PALETTE_IDS · EXACT_CONVEX
+ *   paintTable(stack, model, n) → [hex…]                     **筆刷的顏色表**
+ *       t[n] ＝ 同一處塗了 n 筆之後的顏色（t[0] 是紙色、**t[1] 恆等於圓圈的結果色**）。
+ *       控制器只數「塗過幾次」再查表——**合成邏輯不可以長在繪圖迴圈裡**（DESIGN §4.1／§6）。
  *   normalizeStack(raw) → Stack                               補預設值、夾範圍（不改輸入）
  *   encodeState(state) → 'm=…&b=…&o=…&a=…&t=…&p=…&l=…'        網址列＝存檔（無前導 ?）
  *       state = { model, substrate, observed, anchor, solveTarget, solvePalette,
@@ -341,6 +344,41 @@
       b: Math.round(clamp(cur.b, 0, 255)),
       steps: steps
     };
+  }
+
+  // ---- 筆刷：把「塗了幾次」對應到顏色 --------------------------------------
+
+  /**
+   * 筆刷的顏色表：`t[n]` ＝ 在同一處**塗了 n 筆**之後的顏色（`t[0]` 是基材紙色）。
+   *
+   * 一筆 ＝ 把整個顏料堆疊，往「當下已經在那裡的那個顏色」上再蓋一次：
+   *     t[0] = base
+   *     t[n] = compose({ base: t[n−1], layers }, model)
+   *
+   * ⚠️ **這支存在的理由是「合成邏輯不可以長在繪圖迴圈裡」**（DESIGN §4.1／§6）。
+   *    控制器只維護一個「這個像素被塗過幾次」的整數緩衝區，畫的時候**查表**；
+   *    合成永遠只發生在這裡、用的是同一個 `compose`。於是：
+   *      · 換模型／換基材／改顏料層 → 重算這張表 → 同一批筆觸立刻改頭換面，
+   *        **模型差異在重疊處直接看得見**（實測塗兩筆：srgb #4877b5 vs km #2963ad）。
+   *      · **`t[1]` 恆等於圓圈的結果色**（四個模型實測相符，verify.js I1 擋著）——
+   *        「一筆 ＝ 圓圈那個顏色」是使用者唯一需要記住的心智模型。
+   *
+   * ⚠️ **不要改用 canvas 的 `globalAlpha` 疊**：那是瀏覽器的 alpha 合成，
+   *    等於**永遠只有 `srgb` 一個模型**，而畫面上還寫著現在選的是「罩染」。
+   *    它不會報錯，只會安靜地讓四個模型看起來一模一樣。
+   *
+   * n 預設 12：實測 5–6 筆後逐筆 ΔE00 < 0.5、已趨近顏料本身（km 更快，3 筆）。
+   * **純函式，不改輸入。** 壞輸入回 null。
+   */
+  function paintTable(stack, model, n) {
+    var st = normalizeStack(stack);
+    var m = MODELS.indexOf(model) >= 0 ? model : DEFAULT_MODEL;
+    var max = Math.max(1, Math.min(typeof n === 'number' ? n : 12, 64));
+    var out = [st.base];
+    for (var i = 1; i <= max; i++) {
+      out.push(compose({ base: out[i - 1], layers: st.layers }, m).hex);
+    }
+    return out;
   }
 
   // ---- 目視微調：用「深一點／鮮一點」的語言描述一個顏色 --------------------
@@ -1003,6 +1041,7 @@
     PALETTES: PALETTES, PALETTE_IDS: PALETTE_IDS, EXACT_CONVEX: EXACT_CONVEX,
     compose: compose, over: over, solve: solve, normalizeStack: normalizeStack,
     nudge: nudge, describeNudge: describeNudge, labToRgb: labToRgb,
+    paintTable: paintTable,
     encodeState: encodeState, decodeState: decodeState,
     mergeNearest: mergeNearest,
     substrateOf: substrateOf, calibrationFor: calibrationFor, calibratedColors: calibratedColors,

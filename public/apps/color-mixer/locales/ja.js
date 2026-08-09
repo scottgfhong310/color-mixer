@@ -10,6 +10,14 @@ I18n.register('ja', {
   'canvas.baseHex': '地色を直接指定',
   'canvas.observed': '目視色（見えている色）',
   'canvas.apply': '適用',
+
+  /* ---- ブラシ（第二段階） ---- */
+  'brush.on': '塗り始める',
+  'brush.off': '塗りを終える',
+  'brush.size': 'ブラシサイズ',
+  'brush.erase': '消しゴム',
+  'brush.clear': 'クリア',
+  'brush.note': '1 ストローク ＝ 円の色（{one}）。重なった部分は「{model}」に従って濃くなります：2 回で {two}、飽和で {full}。',
   'canvas.observedHint': '実際に見えている色を入力すると、円がその色で描画され、計算値との差も表示されます',
   'canvas.observedBadge': '目視',
   'canvas.computed': '計算値',
