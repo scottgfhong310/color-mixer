@@ -7,10 +7,20 @@
     "start": "node app.js",
     "verify": "node scripts/verify.js"
   },
-  "keywords": ["color", "colour", "mixer", "palette", "kubelka-munk", "oklab", "copic", "faber-castell", "express"],
+  "keywords": [
+    "color",
+    "colour",
+    "mixer",
+    "palette",
+    "kubelka-munk",
+    "oklab",
+    "copic",
+    "faber-castell",
+    "express"
+  ],
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "morgan": "^1.10.0"
   }
 }
