@@ -189,6 +189,13 @@ body {
 .field-hex input {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+/* ⚠️ box-sizing 只能用 id（1,0,0）：共用件 filter-clear.css 加了
+ * `padding-right: 34px !important`，而 Materialize 的 `input[type=text]:not(.browser-default)`
+ * 是 content-box ⇒ 兩個框的 border-box 都比自己的 .filter-clear-wrap 寬 34px
+ * （2026-09-07 實測 #solve-target 1013.8 vs 979.8、#pick-search 275 vs 241）。
+ * `.field-hex input`／`.pick-search input` 是 (0,1,1)，輸給 Materialize 的 (0,2,1)——
+ * 那兩條規則裡沒有 !important 的宣告都不會生效，不要把 box-sizing 放進去。 */
+#solve-target, #pick-search { box-sizing: border-box; }
 
 /* ---- 複製鈕列（§11.1：var → hex → rgb → class） ---- */
 .copy-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
