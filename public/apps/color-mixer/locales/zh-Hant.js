@@ -163,7 +163,7 @@ I18n.register('zh-Hant', {
   /* ---- toast（§6 正統表逐字） ---- */
   'toast.copied': '已複製',
   'toast.copiedValue': '已複製：{v}',
-  'toast.copyFail': '複製失敗（需 localhost 或 HTTPS）',
+  'toast.copyFail': '複製失敗',
   'toast.lang': '已切換為 {name}',
   'toast.reset': '已清除',
   'toast.badHex': '不是有效的顏色：{v}',

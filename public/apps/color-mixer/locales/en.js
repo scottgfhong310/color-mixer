@@ -160,7 +160,7 @@ I18n.register('en', {
   /* ---- toasts ---- */
   'toast.copied': 'Copied',
   'toast.copiedValue': 'Copied: {v}',
-  'toast.copyFail': 'Copy failed (needs localhost or HTTPS)',
+  'toast.copyFail': 'Copy failed',
   'toast.lang': 'Switched to {name}',
   'toast.reset': 'Cleared',
   'toast.badHex': 'Not a valid colour: {v}',

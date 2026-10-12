@@ -160,7 +160,7 @@ I18n.register('ja', {
   /* ---- トースト ---- */
   'toast.copied': 'コピーしました',
   'toast.copiedValue': 'コピーしました：{v}',
-  'toast.copyFail': 'コピーに失敗（localhost または HTTPS が必要）',
+  'toast.copyFail': 'コピーに失敗しました',
   'toast.lang': '{name} に切り替えました',
   'toast.reset': 'クリアしました',
   'toast.badHex': '有効な色ではありません：{v}',
