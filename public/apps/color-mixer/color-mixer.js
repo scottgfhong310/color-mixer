@@ -882,13 +882,20 @@
       });
     } else if (legacyCopy(text)) { done(); } else { toast(t('toast.copyFail'), 'red'); }
   }
+  // 明細／CSS 的複製鈕在 Materialize modal 裡：它會把跑到 modal 外的焦點搶回去（focus trap），
+  // 掛在 body 上的 textarea 選不住、execCommand 卻照樣回 true（toast 說已複製、剪貼簿沒變）
+  // ⇒ 掛在最上層開著的 modal 裡，並自己確認焦點與全選（2026-10-26 區網 http 實測）
   function legacyCopy(text) {
     try {
+      var open = [].slice.call(document.querySelectorAll('.modal.open'));
+      open.sort(function (a, b) { return (+b.style.zIndex || 0) - (+a.style.zIndex || 0); });
+      var host = open[0] || document.body;
       var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      var ok = document.execCommand('copy');
-      document.body.removeChild(ta);
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      host.appendChild(ta); ta.focus({ preventScroll: true }); ta.select(); ta.setSelectionRange(0, ta.value.length);
+      var selected = document.activeElement === ta && ta.selectionStart === 0 && ta.selectionEnd === ta.value.length;
+      var ok = selected && document.execCommand('copy');
+      host.removeChild(ta);
       return ok;
     } catch (e) { return false; }
   }
